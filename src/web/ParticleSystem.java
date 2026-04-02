@@ -4,6 +4,9 @@ import java.util.List;
 import java.util.Random;
 
 public class ParticleSystem {
+    private static final int MAX_PARTICLES = 650;
+    private static final double WEB_PARTICLE_SCALE = 0.6;
+
     private static class Particle {
         double x, y;
         double vx, vy;
@@ -51,12 +54,18 @@ public class ParticleSystem {
     private final Random rand = new Random();
     
     public void createExplosion(double x, double y, Color color, int count, double speed) {
+        if (particles.size() >= MAX_PARTICLES) {
+            return;
+        }
+
+        count = Math.max(1, (int)Math.round(count * WEB_PARTICLE_SCALE));
+        count = Math.min(count, MAX_PARTICLES - particles.size());
         for (int i = 0; i < count; i++) {
             double angle = rand.nextDouble() * Math.PI * 2;
             double velocity = speed * (0.5 + rand.nextDouble());
             double vx = Math.cos(angle) * velocity;
             double vy = Math.sin(angle) * velocity;
-            int lifetime = 30 + rand.nextInt(30);
+            int lifetime = 24 + rand.nextInt(24);
             int size = 2 + rand.nextInt(3);
             particles.add(new Particle(x, y, vx, vy, color, lifetime, size));
         }

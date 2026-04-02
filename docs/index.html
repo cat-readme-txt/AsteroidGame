@@ -1,0 +1,76 @@
+<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <title>Asteroid Game - Void Navigator</title>
+    <script src="https://cjrtnc.leaningtech.com/4.2/loader.js"></script>
+    <style>
+      html, body { 
+        margin: 0; 
+        padding: 0;
+        height: 100%; 
+        overflow: hidden;
+        background: #000;
+      }
+      #container { 
+        width: 100vw; 
+        height: 100vh; 
+        display: flex;
+        justify-content: center;
+        align-items: center;
+      }
+      #loading {
+        position: absolute;
+        color: #0ff;
+        font-family: 'Courier New', monospace;
+        font-size: 24px;
+        text-align: center;
+      }
+    </style>
+  </head>
+  <body>
+    <div id="container">
+      <div id="loading">Loading Void Navigator OS...</div>
+    </div>
+
+    <script type="module">
+      try {
+        // Initialize CheerpJ
+        console.log("about to init");
+        await cheerpjInit({ version: 17 });
+        console.log("init done");
+        
+        // Create display
+        cheerpjCreateDisplay(-1, -1, document.getElementById("container"));
+
+        const loading = document.getElementById("loading");
+        loading.textContent = "Mounting game assets...";
+
+        const jarUrl = "./AsteroidGame.jar";
+        console.log("jarUrl =", jarUrl);
+
+        const resolved = new URL(jarUrl, import.meta.url).toString();
+        const appJarPath = "/app" + new URL(jarUrl, import.meta.url).pathname;
+        console.log("resolved jarUrl =", resolved);
+        console.log("app jar path =", appJarPath);
+
+        const r = await fetch(resolved, { cache: "no-store" });
+        console.log("fetch status", r.status, r.statusText, "type", r.type);
+        console.log("content-type", r.headers.get("content-type"));
+        const buf = await r.arrayBuffer();
+        console.log("jar bytes", buf.byteLength);
+        
+        loading.textContent = "Launching game...";
+        console.log("about to run jar");
+        loading.style.display = "none";
+        const exitCode = await cheerpjRunJar(appJarPath);
+        console.log("exitCode =", exitCode);
+        console.log("jar launched");
+      } catch (error) {
+        document.getElementById('loading').innerHTML = 
+          'Error loading game: ' + error.message + '<br>Please refresh the page.';
+        console.error('CheerpJ error:', error);
+      }
+    </script>
+  </body>
+</html>

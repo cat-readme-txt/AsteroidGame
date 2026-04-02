@@ -9,55 +9,6 @@ import javax.swing.*;
 import javax.swing.Timer;
 
 public final class AsteroidGame extends JPanel implements ActionListener, KeyListener {
-	static final class SpatialHashGrid<T> {
-		private final int cellSize;
-		private final HashMap<Long, ArrayList<T>> buckets = new HashMap<>();
-
-		SpatialHashGrid(int cellSize) {
-			this.cellSize = cellSize;
-		}
-
-		void clear() {
-			// Reuse bucket lists to avoid allocations
-			for (ArrayList<T> list : buckets.values()) list.clear();
-		}
-
-		private int cell(double v) {
-			return (int)Math.floor(v / cellSize);
-		}
-
-		private long key(int cx, int cy) {
-			return (((long) cx) << 32) ^ (cy & 0xffffffffL);
-		}
-
-		void insert(double x, double y, T obj) {
-			int cx = cell(x), cy = cell(y);
-			long k = key(cx, cy);
-			ArrayList<T> list = buckets.get(k);
-			if (list == null) {
-				list = new ArrayList<>(16);
-				buckets.put(k, list);
-			}
-			list.add(obj);
-		}
-
-		/*
-		 * Adds candidates from the 3x3 neighboring cells to `out`.
-		 * Note: candidates still need an exact radius check in boids.
-		 */
-		void queryNearby(double x, double y, ArrayList<T> out) {
-			out.clear();
-			int cx = cell(x), cy = cell(y);
-			for (int oy = -1; oy <= 1; oy++) {
-				for (int ox = -1; ox <= 1; ox++) {
-					long k = key(cx + ox, cy + oy);
-					ArrayList<T> list = buckets.get(k);
-					if (list != null && !list.isEmpty()) out.addAll(list);
-				}
-			}
-		}
-	}
-
     // Alpha Fades and Timers
     private int level;
 	private ShipLevel shipLevel;
@@ -96,11 +47,6 @@ public final class AsteroidGame extends JPanel implements ActionListener, KeyLis
 	private final List<BlackHole> blackHolesToRemove = new ArrayList<>();
 	private final List<CosmicEntity> cosmicEntitiesToRemove = new ArrayList<>();
 	private final List<VoidCreature> creaturesToRemove = new ArrayList<>();
-	private final ArrayList<VoidCreature> vcNeighbors = new ArrayList<>(128);
-	private final ArrayList<CosmicEntity> ceNeighbors = new ArrayList<>(128);
-	private static final int BOIDS_CELL = 150;
-	private final SpatialHashGrid<VoidCreature> voidCreatureGrid = new SpatialHashGrid<>(BOIDS_CELL);
-	private final SpatialHashGrid<CosmicEntity> cosmicEntityGrid = new SpatialHashGrid<>(BOIDS_CELL);
 	
 	// ====== Asthetics ======
 	private final GalaxyBackground galaxyBackground;
@@ -905,17 +851,7 @@ public final class AsteroidGame extends JPanel implements ActionListener, KeyLis
 				if (!hazardsToAdd.isEmpty()) {
 					voidHazards.addAll(hazardsToAdd);
 				}
-				
-				// Rebuild boids grids (broad-phase)
-				voidCreatureGrid.clear();
-				for (VoidCreature vc : voidCreatures) {
-					voidCreatureGrid.insert(vc.getX(), vc.getY(), vc);
-				}
-				cosmicEntityGrid.clear();
-				for (CosmicEntity ce : cosmicEntities) {
-					cosmicEntityGrid.insert(ce.getX(), ce.getY(), ce);
-				}
-				
+								
 				// Update void creatures 
 				for (VoidCreature vc : voidCreatures) {
 					vc.update(ship.getX(), ship.getY(), ship.getVoidEnergy().isActive());
@@ -1473,7 +1409,6 @@ public final class AsteroidGame extends JPanel implements ActionListener, KeyLis
                 cosmicEntitiesToRemove.clear();
 				creaturesToRemove.clear();
             	
-            	repaint();
             }
             case "death" -> {
                 deathCountdown--;
@@ -1502,6 +1437,9 @@ public final class AsteroidGame extends JPanel implements ActionListener, KeyLis
 	protected void paintComponent(Graphics g) {
 	    super.paintComponent(g);
 	    Graphics2D g2 = (Graphics2D) g;
+	    g2.setRenderingHint(RenderingHints.KEY_RENDERING, RenderingHints.VALUE_RENDER_SPEED);
+	    g2.setRenderingHint(RenderingHints.KEY_ALPHA_INTERPOLATION, RenderingHints.VALUE_ALPHA_INTERPOLATION_SPEED);
+	    g2.setRenderingHint(RenderingHints.KEY_COLOR_RENDERING, RenderingHints.VALUE_COLOR_RENDER_SPEED);
 	
         switch (gameState) {
             case "menu" -> {
