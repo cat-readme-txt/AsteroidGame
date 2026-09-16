@@ -3,45 +3,33 @@ import java.awt.geom.Line2D;
 
 public class VoidLaser {
     private final double startX, startY;
-    private final double angle;
-    private final int screenWidth, screenHeight;
+    private final Line2D.Double laserLine;
     private final int lifetime = 10; // frames the laser persists
     private int currentFrame = 0;
     
     public VoidLaser(double startX, double startY, double angle, int screenWidth, int screenHeight) {
         this.startX = startX;
         this.startY = startY;
-        this.angle = angle;
-        this.screenWidth = screenWidth;
-        this.screenHeight = screenHeight;
+        double maxLength = Math.hypot(screenWidth, screenHeight);
+        laserLine = new Line2D.Double(startX, startY,
+                startX + maxLength * Math.sin(angle), startY - maxLength * Math.cos(angle));
     }
     
-    public boolean isAlive() {
-        currentFrame++;
-        return currentFrame < lifetime;
-    }
+    public void update() { currentFrame++; }
+
+    public boolean isAlive() { return currentFrame < lifetime; }
     
-    public Line2D.Double getLaserLine() {
-        // Calculate laser endpoint (extends across screen)
-        double maxLength = Math.sqrt(screenWidth * screenWidth + screenHeight * screenHeight);
-        double endX = startX + maxLength * Math.sin(angle);
-        double endY = startY - maxLength * Math.cos(angle);
-        
-        return new Line2D.Double(startX, startY, endX, endY);
-    }
-    
+    // Read-only to callers; the beam stays fixed for its lifetime.
+    public Line2D.Double getLaserLine() { return laserLine; }
+
     public boolean intersects(Polygon polygon) {
         Line2D.Double laser = getLaserLine();
         
         // Check if laser line intersects any edge of the polygon
         for (int i = 0; i < polygon.npoints; i++) {
             int j = (i + 1) % polygon.npoints;
-            Line2D.Double edge = new Line2D.Double(
-                polygon.xpoints[i], polygon.ypoints[i],
-                polygon.xpoints[j], polygon.ypoints[j]
-            );
-            
-            if (laser.intersectsLine(edge)) {
+            if (laser.intersectsLine(polygon.xpoints[i], polygon.ypoints[i],
+                    polygon.xpoints[j], polygon.ypoints[j])) {
                 return true;
             }
         }

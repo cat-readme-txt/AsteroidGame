@@ -2,19 +2,27 @@
 <html>
   <head>
     <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate" />
+    <meta http-equiv="Pragma" content="no-cache" />
+    <meta http-equiv="Expires" content="0" />
     <title>Asteroid Game - Void Navigator</title>
     <script src="https://cjrtnc.leaningtech.com/4.2/loader.js"></script>
     <style>
       html, body { 
         margin: 0; 
         padding: 0;
+        width: 100%;
         height: 100%; 
         overflow: hidden;
         background: #000;
       }
       #container { 
-        width: 100vw; 
-        height: 100vh; 
+        position: fixed;
+        inset: 0;
+        width: 100%;
+        height: 100vh;
+        height: 100dvh;
         display: flex;
         justify-content: center;
         align-items: center;
@@ -40,32 +48,29 @@
         await cheerpjInit({ version: 17 });
         console.log("init done");
         
-        // Create display
+        // -1 makes the CheerpJ display follow its parent on every browser resize.
         cheerpjCreateDisplay(-1, -1, document.getElementById("container"));
 
         const loading = document.getElementById("loading");
         loading.textContent = "Mounting game assets...";
 
-        const jarUrl = "./AsteroidGame.jar";
-        console.log("jarUrl =", jarUrl);
-
-        const resolved = new URL(jarUrl, import.meta.url).toString();
-        const appJarPath = "/app" + new URL(jarUrl, import.meta.url).pathname;
-        console.log("resolved jarUrl =", resolved);
+        const fetchUrl = new URL("./AsteroidGame.jar?v=20260916-responsive", import.meta.url).toString();
+        const appJarPath = "/app/docs/AsteroidGame.jar";
+        console.log("fetchUrl =", fetchUrl);
         console.log("app jar path =", appJarPath);
 
-        const r = await fetch(resolved, { cache: "no-store" });
+        const r = await fetch(fetchUrl, { cache: "no-store" });
         console.log("fetch status", r.status, r.statusText, "type", r.type);
         console.log("content-type", r.headers.get("content-type"));
         const buf = await r.arrayBuffer();
         console.log("jar bytes", buf.byteLength);
         
         loading.textContent = "Launching game...";
-        console.log("about to run jar");
+        console.log("about to run main");
         loading.style.display = "none";
-        const exitCode = await cheerpjRunJar(appJarPath);
+        const exitCode = await cheerpjRunMain("AsteroidGame", appJarPath, "--browser");
         console.log("exitCode =", exitCode);
-        console.log("jar launched");
+        console.log("main launched");
       } catch (error) {
         document.getElementById('loading').innerHTML = 
           'Error loading game: ' + error.message + '<br>Please refresh the page.';

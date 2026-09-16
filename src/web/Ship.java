@@ -1,6 +1,4 @@
 import java.awt.*;
-import java.awt.geom.AffineTransform;
-import java.awt.geom.PathIterator;
 import java.awt.geom.Point2D;
 
 public class Ship {
@@ -19,7 +17,12 @@ public class Ship {
     private double vy = 0;
     
     // Ship Bounds
-    Polygon shipBody;
+    private final Polygon shipBody = new Polygon(
+            new int[] {0, -bodyWidth / 2, -bodyWidth / 4, bodyWidth / 4, bodyWidth / 2},
+            new int[] {-bodyHeight / 2, bodyHeight / 4, bodyHeight / 2, bodyHeight / 2, bodyHeight / 4},
+            5);
+    private final Polygon collisionBounds = new Polygon(new int[5], new int[5], 5);
+    private boolean collisionBoundsDirty = true;
 
     // Rotation and thrust
     private double angle = 0; // in radians
@@ -91,6 +94,7 @@ public class Ship {
     public void rotateLeft() {
         double multiplier = hyper ? hyperMultiplier*2 : 1;
         angle -= multiplier * rotationSpeed;
+        collisionBoundsDirty = true;
 
 		// Absorb energy if in the Void, otherwise dissipate
 		if (fadeMode) {
@@ -105,6 +109,7 @@ public class Ship {
     public void rotateRight() {
         double multiplier = hyper ? hyperMultiplier*2 : 1;
         angle += multiplier * rotationSpeed;
+        collisionBoundsDirty = true;
 
 		// Absorb energy if in the Void, otherwise dissipate
 		if (fadeMode) {
@@ -134,6 +139,7 @@ public class Ship {
 	    //loop universe
 		x = (x + WIDTH) % WIDTH;
 		y = (y + HEIGHT) % HEIGHT;
+		collisionBoundsDirty = true;
 
 		// Add trail point
 		if (hyper || voidEnergy.isActive()) {
@@ -147,32 +153,19 @@ public class Ship {
 	}
 
 	public Polygon getBounds() {
-	    // Define the ship's shape centered at origin
-	    Polygon ship = new Polygon();
-	    ship.addPoint(0, -bodyHeight / 2);
-	    ship.addPoint(-bodyWidth / 2, bodyHeight / 4);
-	    ship.addPoint(-bodyWidth / 4, bodyHeight / 2);
-	    ship.addPoint(bodyWidth / 4, bodyHeight / 2);
-	    ship.addPoint(bodyWidth / 2, bodyHeight / 4);
-	
-	    // Apply rotation and translation to get ship's position in world space
-	    AffineTransform transform = new AffineTransform();
-	    transform.translate(x, y);
-	    transform.rotate(angle);
-	
-	    Shape transformed = transform.createTransformedShape(ship);
-	
-	    // Convert transformed shape back to polygon
-	    Polygon transformedPoly = new Polygon();
-	    for (PathIterator pi = transformed.getPathIterator(null); !pi.isDone(); pi.next()) {
-	        double[] coords = new double[6];
-	        int type = pi.currentSegment(coords);
-	        if (type != PathIterator.SEG_CLOSE) {
-	            transformedPoly.addPoint((int) coords[0], (int) coords[1]);
+	    if (collisionBoundsDirty) {
+	        double sin = Math.sin(angle);
+	        double cos = Math.cos(angle);
+	        for (int i = 0; i < shipBody.npoints; i++) {
+	            int localX = shipBody.xpoints[i];
+	            int localY = shipBody.ypoints[i];
+	            collisionBounds.xpoints[i] = (int)(x + localX * cos - localY * sin);
+	            collisionBounds.ypoints[i] = (int)(y + localX * sin + localY * cos);
 	        }
+	        collisionBounds.invalidate();
+	        collisionBoundsDirty = false;
 	    }
-	
-	    return transformedPoly;
+	    return collisionBounds;
 	}
 
 	public void draw(Graphics g) {
@@ -200,12 +193,6 @@ public class Ship {
 
 	    // --- Draw the spaceship body shape ---
 	    g2d.setColor(Color.WHITE);
-	    shipBody = new Polygon();
-	    shipBody.addPoint(0, -bodyHeight / 2);
-	    shipBody.addPoint(-bodyWidth / 2, bodyHeight / 4);
-	    shipBody.addPoint(-bodyWidth / 4, bodyHeight / 2);
-	    shipBody.addPoint(bodyWidth / 4, bodyHeight / 2);
-	    shipBody.addPoint(bodyWidth / 2, bodyHeight / 4);
 	    g2d.fillPolygon(shipBody);
 		
 	    // --- Draw dynamic flame ---
@@ -390,7 +377,7 @@ public class Ship {
     public int getShipWidth() { return bodyWidth; }
     public int getShipHeight() { return bodyHeight; }
 	public Point2D.Double getTipPosition() {
-	    double noseOffset = -bodyHeight / 2.0;
+	    double noseOffset = bodyHeight / 2.0;
 	    double tipX = x + noseOffset * Math.sin(angle);
 	    double tipY = y - noseOffset * Math.cos(angle);
 	    return new Point2D.Double(tipX, tipY);
@@ -403,9 +390,9 @@ public class Ship {
 	
 	// Modify Values
 	public void setFuel(double newFuel) { fuel = newFuel; }
-	public void setX(double newX) { x = newX; }
-	public void setY(double newY) { y = newY; }
-	public void setAngle(double newAngle) { angle = newAngle; }
+	public void setX(double newX) { x = newX; collisionBoundsDirty = true; }
+	public void setY(double newY) { y = newY; collisionBoundsDirty = true; }
+	public void setAngle(double newAngle) { angle = newAngle; collisionBoundsDirty = true; }
 	public void setVoidEnergy(VoidEnergy ve) { this.voidEnergy = ve; }
 	public void setHyper(boolean active) { hyper = active; }
 	public void addFuel(int gain) { fuel += gain; }

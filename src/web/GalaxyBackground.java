@@ -13,12 +13,15 @@ public final class GalaxyBackground {
 
     // Performance tuning
     private static final float CACHE_SCALE = 0.5f;     // render nebula layer at 50% res
-    private static final int REBUILD_EVERY_N_FRAMES = 3; // rebuild cached nebula every N frames
+    // The nebula hue moves slowly, so rebuilding its radial gradients at 5 Hz
+    // preserves the animation without paying that cost on every few paints.
+    private static final int REBUILD_EVERY_N_FRAMES = 12;
 
     private final Random rand = new Random(1337);
 
     private float t = 0f;          // time accumulator
     private int frameCounter = 0;
+    private boolean nebulaDirty = true;
 
     // Precomputed nebula blob params (stable over time)
     private final float[] nx = new float[NEBULA_COUNT];   // normalized 0..1
@@ -28,7 +31,10 @@ public final class GalaxyBackground {
 
     // Cached layer
     private BufferedImage nebulaLayer;
+    private BufferedImage displayLayer;
     private int cachedW = -1, cachedH = -1;
+    private int displayW = -1, displayH = -1;
+    private boolean displayDirty = true;
 
     public GalaxyBackground() {
         // Stable positions/sizes so motion/color feels continuous
@@ -44,45 +50,71 @@ public final class GalaxyBackground {
         // Smooth continuous flow. 0.001f @ 60fps -> slow; keep but make it continuous.
         t += 0.0010f;
         if (t > 10_000f) t = 0f; // avoid float drift
-        frameCounter++;
+        if (++frameCounter >= REBUILD_EVERY_N_FRAMES) {
+            frameCounter = 0;
+            nebulaDirty = true;
+        }
     }
 
     public void draw(Graphics2D g2d, int width, int height) {
         if (width <= 0 || height <= 0) return;
 
-        // 1) Background vertical gradient (cheap)
         float baseHue = smoothHue(t);
-        Color colorTop = Color.getHSBColor(baseHue, BASE_SAT, BASE_BRI1);
-        Color colorBot = Color.getHSBColor(wrap01(baseHue + 0.18f), 0.55f, BASE_BRI2);
-
-        g2d.setPaint(new GradientPaint(0, 0, colorTop, 0, height, colorBot));
-        g2d.fillRect(0, 0, width, height);
-
-        // 2) Nebula cached layer (expensive part moved off per-frame path)
+        // Render the gradients at reduced resolution, then compose one opaque
+        // full-size frame only when the very slow hue animation advances.
         int lw = Math.max(1, Math.round(width * CACHE_SCALE));
         int lh = Math.max(1, Math.round(height * CACHE_SCALE));
 
-        boolean sizeChanged = (lw != cachedW || lh != cachedH);
-        boolean timeToRebuild = (frameCounter % REBUILD_EVERY_N_FRAMES == 0);
-
+        boolean sizeChanged = (lw != cachedW || lh != cachedH || width != displayW || height != displayH);
         if (sizeChanged || nebulaLayer == null) {
             cachedW = lw;
             cachedH = lh;
-            nebulaLayer = new BufferedImage(cachedW, cachedH, BufferedImage.TYPE_INT_ARGB);
-            // Rebuild immediately on size change
-            rebuildNebulaLayer(baseHue);
-        } else if (timeToRebuild) {
-            rebuildNebulaLayer(baseHue);
+            nebulaLayer = new BufferedImage(cachedW, cachedH, BufferedImage.TYPE_INT_ARGB_PRE);
+            nebulaDirty = true;
         }
+        if (displayLayer == null || width != displayW || height != displayH) {
+            displayW = width;
+            displayH = height;
+            displayLayer = new BufferedImage(displayW, displayH, BufferedImage.TYPE_INT_RGB);
+            displayDirty = true;
+        }
+        // Painting does not advance the animation. In menus/paused states the
+        // same frame may be painted repeatedly, so consume each invalidation once.
+        if (nebulaDirty) {
+            rebuildNebulaLayer(baseHue);
+            nebulaDirty = false;
+            displayDirty = true;
+        }
+        if (displayDirty) rebuildDisplayLayer(baseHue);
 
-        // Draw cached layer scaled up (fast)
-        Object oldHint = g2d.getRenderingHint(RenderingHints.KEY_INTERPOLATION);
-        g2d.setRenderingHint(RenderingHints.KEY_INTERPOLATION, RenderingHints.VALUE_INTERPOLATION_BILINEAR);
-        g2d.drawImage(nebulaLayer, 0, 0, width, height, null);
-        // Only restore if it was previously set
-        if (oldHint != null) {
-            g2d.setRenderingHint(RenderingHints.KEY_INTERPOLATION, oldHint);
-        } 
+        // The costly bilinear upscale happens only when the nebula changes.
+        g2d.drawImage(displayLayer, 0, 0, null);
+    }
+
+    private void rebuildDisplayLayer(float baseHue) {
+        Graphics2D displayGraphics = displayLayer.createGraphics();
+        try {
+            displayGraphics.setComposite(AlphaComposite.Src);
+            Color colorTop = Color.getHSBColor(baseHue, BASE_SAT, BASE_BRI1);
+            Color colorBottom = Color.getHSBColor(wrap01(baseHue + 0.18f), 0.55f, BASE_BRI2);
+            displayGraphics.setPaint(new GradientPaint(0, 0, colorTop, 0, displayH, colorBottom));
+            displayGraphics.fillRect(0, 0, displayW, displayH);
+            displayGraphics.setComposite(AlphaComposite.SrcOver);
+            displayGraphics.setRenderingHint(RenderingHints.KEY_INTERPOLATION,
+                    RenderingHints.VALUE_INTERPOLATION_BILINEAR);
+            displayGraphics.drawImage(nebulaLayer, 0, 0, displayW, displayH, null);
+        } finally {
+            displayGraphics.dispose();
+        }
+        displayDirty = false;
+    }
+
+    /** Drop the full-size copy when another composed cache already owns these pixels. */
+    public void releaseDisplayLayer() {
+        displayLayer = null;
+        displayW = -1;
+        displayH = -1;
+        displayDirty = true;
     }
 
     private void rebuildNebulaLayer(float baseHue) {
@@ -104,7 +136,7 @@ public final class GalaxyBackground {
             for (int i = 0; i < NEBULA_COUNT; i++) {
                 int x = Math.round(nx[i] * cachedW);
                 int y = Math.round(ny[i] * cachedH);
-                int radius = Math.round((0.35f * Math.min(cachedW, cachedH)) * nr[i]); // scaled to layer size
+                int radius = Math.max(1, Math.round((0.35f * Math.min(cachedW, cachedH)) * nr[i])); // scaled to layer size
 
                 float nebHue = wrap01(baseHue + hueOffset[i]);
                 Color core = withAlpha(Color.getHSBColor(nebHue, 0.75f, 0.35f), 90);

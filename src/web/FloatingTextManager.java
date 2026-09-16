@@ -1,10 +1,19 @@
 import java.awt.*;
 import java.util.ArrayList;
-import java.util.Iterator;
 import java.util.List;
 
 public class FloatingTextManager {
     public enum Type { XP, FUEL, DAMAGE, INFO }
+
+    private static final Font[] TEXT_FONTS = createTextFonts();
+
+    private static Font[] createTextFonts() {
+        Font[] fonts = new Font[7];
+        for (int i = 0; i < fonts.length; i++) {
+            fonts[i] = new Font("Arial", Font.BOLD, 6 + i);
+        }
+        return fonts;
+    }
     
     public static class FloatingText {
         private String text;
@@ -49,29 +58,30 @@ public class FloatingTextManager {
             float alpha = (float) lifetime / maxLifetime;
             
             Font originalFont = g2d.getFont();
-            Font scaledFont = new Font("Arial", Font.BOLD, (int)(12 * scale));
+            Font scaledFont = TEXT_FONTS[(int)(12 * scale) - 6];
             g2d.setFont(scaledFont);
             
             // Shadow
             Color shadowColor = new Color(0, 0, 0, (int)(200 * alpha));
             g2d.setColor(shadowColor);
             FontMetrics fm = g2d.getFontMetrics();
-            g2d.drawString(text, (int)(x - fm.stringWidth(text) / 2) + 2, (int)y + 2);
+            int textX = (int)(x - fm.stringWidth(text) / 2);
+            g2d.drawString(text, textX + 2, (int)y + 2);
             
             // Glow based on type
             if (type == Type.XP) {
                 for (int i = 2; i > 0; i--) {
                     int glowAlpha = (int)(50 * alpha);
                     g2d.setColor(new Color(100, 200, 255, glowAlpha));
-                    g2d.drawString(text, (int)(x - fm.stringWidth(text) / 2) - i, (int)y - i);
-                    g2d.drawString(text, (int)(x - fm.stringWidth(text) / 2) + i, (int)y + i);
+                    g2d.drawString(text, textX - i, (int)y - i);
+                    g2d.drawString(text, textX + i, (int)y + i);
                 }
             } else if (type == Type.FUEL) {
                 for (int i = 2; i > 0; i--) {
                     int glowAlpha = (int)(50 * alpha);
                     g2d.setColor(new Color(255, 200, 0, glowAlpha));
-                    g2d.drawString(text, (int)(x - fm.stringWidth(text) / 2) - i, (int)y - i);
-                    g2d.drawString(text, (int)(x - fm.stringWidth(text) / 2) + i, (int)y + i);
+                    g2d.drawString(text, textX - i, (int)y - i);
+                    g2d.drawString(text, textX + i, (int)y + i);
                 }
             }
             
@@ -83,13 +93,13 @@ public class FloatingTextManager {
                 (int)(255 * alpha)
             );
             g2d.setColor(drawColor);
-            g2d.drawString(text, (int)(x - fm.stringWidth(text) / 2), (int)y);
+            g2d.drawString(text, textX, (int)y);
             
             g2d.setFont(originalFont);
         }
     }
     
-    private List<FloatingText> texts = new ArrayList<>();
+    private final List<FloatingText> texts = new ArrayList<>();
     
     // Convenience factory methods
     public static FloatingText createXP(int amount, double x, double y) {
@@ -137,13 +147,18 @@ public class FloatingTextManager {
     }
     
     public void update() {
-        Iterator<FloatingText> it = texts.iterator();
-        while (it.hasNext()) {
-            FloatingText text = it.next();
+        int count = texts.size();
+        int write = 0;
+        for (int read = 0; read < count; read++) {
+            FloatingText text = texts.get(read);
             text.update();
-            if (!text.isAlive()) {
-                it.remove();
+            if (text.isAlive()) {
+                texts.set(write++, text);
             }
+        }
+        // Remove expired entries in one operation, preserving the draw order.
+        if (write < count) {
+            texts.subList(write, count).clear();
         }
     }
     

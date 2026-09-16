@@ -9,6 +9,10 @@ public class StarField {
         double z; // depth (0 = far, 1 = near)
         double speed;
         int brightness;
+        final Color normalColor;
+        final Color voidColor;
+        final Color normalGlow;
+        final Color voidGlow;
         
         Star(double x, double y, double z, double speed) {
             this.x = x;
@@ -16,6 +20,11 @@ public class StarField {
             this.z = z;
             this.speed = speed;
             this.brightness = (int) (100 + 155 * z);
+            normalColor = new Color(brightness, brightness, brightness, 200);
+            voidColor = new Color((int) (brightness * 0.8), 0, brightness, 200);
+            int glowAlpha = (int) (50 * z);
+            normalGlow = new Color(255, 255, 255, glowAlpha);
+            voidGlow = new Color(150, 0, 255, glowAlpha);
         }
     }
     
@@ -76,29 +85,16 @@ public class StarField {
     public void draw(Graphics2D g2d) {
         for (Star star : stars) {
             int size = (int) (1 + star.z * 2);
-            Color color;
-            
-            if (voidMode) {
-                // Purple-tinted stars in void mode
-                int purple = (int) (star.brightness * 0.8);
-                color = new Color(purple, 0, star.brightness, 200);
-            } else {
-                // Normal white stars
-                color = new Color(star.brightness, star.brightness, star.brightness, 200);
-            }
-            
-            g2d.setColor(color);
-            g2d.fillOval((int) star.x - size / 2, (int) star.y - size / 2, size, size);
+            g2d.setColor(voidMode ? star.voidColor : star.normalColor);
+            // At one to three pixels a rectangle is visually equivalent and avoids
+            // the considerably heavier Java2D ellipse path (especially in CheerpJ).
+            g2d.fillRect((int) star.x - size / 2, (int) star.y - size / 2, size, size);
             
             // Add glow for bright stars
             if (star.z > 0.7) {
                 int glowSize = size + 2;
-                int alpha = (int) (50 * star.z);
-                Color glowColor = voidMode ? 
-                    new Color(150, 0, 255, alpha) : 
-                    new Color(255, 255, 255, alpha);
-                g2d.setColor(glowColor);
-                g2d.fillOval((int) star.x - glowSize / 2, (int) star.y - glowSize / 2, glowSize, glowSize);
+                g2d.setColor(voidMode ? star.voidGlow : star.normalGlow);
+                g2d.fillRect((int) star.x - glowSize / 2, (int) star.y - glowSize / 2, glowSize, glowSize);
             }
         }
     }

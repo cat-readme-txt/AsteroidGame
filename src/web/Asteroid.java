@@ -10,11 +10,14 @@ public class Asteroid{
 
     private double x, y;
     private double vx, vy;
-    private final double normalvx, normalvy;
+    private double normalvx, normalvy;
     private double slowedvx, slowedvy;
     private final Size size;
     private Polygon shape;
-    private static double levelMultiplier;
+    private Polygon worldShape;
+    private Rectangle localBounds;
+    private final Rectangle worldBounds = new Rectangle();
+    private double levelMultiplier = 1.0;
     private boolean hitFlash = false;
     private int hitFlashTimer = 0;
     private static final Random rand = new Random();
@@ -27,7 +30,6 @@ public class Asteroid{
         this.vy = vy;
         this.normalvx = vx;
         this.normalvy = vy;
-        levelMultiplier = 1;
         generateShape();
     }
 
@@ -54,7 +56,7 @@ public class Asteroid{
 	
 	    // Normalize and apply speed
 	    double distance = Math.sqrt(dx * dx + dy * dy);
-	    double speed = 1 + rand.nextDouble() * 1.5 * levelMultiplier;
+	    double speed = 1 + rand.nextDouble() * 1.5;
 	    double vx = (dx / distance) * speed;
 	    double vy = (dy / distance) * speed;
 	
@@ -80,11 +82,15 @@ public class Asteroid{
             ys[i] = (int) (r * Math.sin(angle));
         }
         shape = new Polygon(xs, ys, points);
+        worldShape = new Polygon(new int[points], new int[points], points);
+        localBounds = shape.getBounds();
+        updateBounds();
     }
 
     public void update() {
         x += vx;
         y += vy;
+        updateBounds();
         
         if (hitFlash) {
             hitFlashTimer--;
@@ -101,7 +107,7 @@ public class Asteroid{
             // White glow overlay
             float alpha = hitFlashTimer / 10.0f;
             g2d.setColor(new Color(255, 255, 255, (int)(200 * alpha)));
-            int glowSize = (int)(getBounds().getBounds().width * 1.5);
+            int glowSize = (int)(worldBounds.width * 1.5);
             g2d.fillOval(-glowSize/2, -glowSize/2, glowSize, glowSize);
         }
         
@@ -110,19 +116,12 @@ public class Asteroid{
         g2d.translate(-x, -y);
     }
 
-	public boolean intersects(Polygon shipBounds) {
-	    Polygon moved = new Polygon();
-	    for (int i = 0; i < shape.npoints; i++) {
-	        moved.addPoint(shape.xpoints[i] + (int)x, shape.ypoints[i] + (int)y);
-	    }
-	    
-	    Area asteroidArea = new Area(moved);
-	    Area shipArea = new Area(shipBounds);
-	    
-	    asteroidArea.intersect(shipArea);
-	    
-	    return !asteroidArea.isEmpty();  // True if there's overlap
-	}
+    public boolean intersects(Polygon shipBounds) {
+        if (shipBounds == null || !worldBounds.intersects(shipBounds.getBounds2D())) return false;
+        Area asteroidArea = new Area(worldShape);
+        asteroidArea.intersect(new Area(shipBounds));
+        return !asteroidArea.isEmpty();
+    }
 
 	public List<Asteroid> split() {
 	    List<Asteroid> fragments = new ArrayList<>();
@@ -135,8 +134,8 @@ public class Asteroid{
 	        }
 	    }
 	    for (int i = 0; i < 2; i++) {
-	        double newVX = vx + (rand.nextDouble() - 0.5);
-	        double newVY = vy + (rand.nextDouble() - 0.5);
+	        double newVX = normalvx + (rand.nextDouble() - 0.5);
+	        double newVY = normalvy + (rand.nextDouble() - 0.5);
 	        fragments.add(new Asteroid(newSize, x, y, newVX, newVY));
 	    }
 	    return fragments;
@@ -147,16 +146,42 @@ public class Asteroid{
         hitFlashTimer = 10; // 10 frames
     }
 
-    public Polygon getBounds() {
-        Polygon moved = new Polygon();
+    private void updateBounds() {
+        int positionX = (int)x;
+        int positionY = (int)y;
         for (int i = 0; i < shape.npoints; i++) {
-            moved.addPoint(shape.xpoints[i] + (int)x, shape.ypoints[i] + (int)y);
+            worldShape.xpoints[i] = shape.xpoints[i] + positionX;
+            worldShape.ypoints[i] = shape.ypoints[i] + positionY;
         }
-        return moved;
+        worldShape.invalidate();
+        worldBounds.setBounds(localBounds.x + positionX, localBounds.y + positionY,
+                localBounds.width, localBounds.height);
+    }
+
+    // These cached shapes are read-only to callers and move with this asteroid.
+    public Polygon getBounds() { return worldShape; }
+    public Rectangle getBoundingBox() { return worldBounds; }
+
+    public boolean hasExited(int screenWidth, int screenHeight) {
+        // Keep inward-moving spawns; retire only after the entire shape leaves an edge.
+        return (worldBounds.getMaxX() < 0 && vx <= 0)
+                || (worldBounds.getMinX() > screenWidth && vx >= 0)
+                || (worldBounds.getMaxY() < 0 && vy <= 0)
+                || (worldBounds.getMinY() > screenHeight && vy >= 0);
     }
 
     public Size getSize() { return size; }
-    public void setMultiplier(double newMultiplier) { levelMultiplier = newMultiplier; }
+    public void setMultiplier(double newMultiplier) {
+        if (newMultiplier <= 0 || newMultiplier == levelMultiplier) return;
+        double ratio = newMultiplier / levelMultiplier;
+        normalvx *= ratio;
+        normalvy *= ratio;
+        vx *= ratio;
+        vy *= ratio;
+        slowedvx *= ratio;
+        slowedvy *= ratio;
+        levelMultiplier = newMultiplier;
+    }
     public void toggleTimeSlow(boolean isActive) {
     	if (isActive) { 
     		vx=slowedvx; 

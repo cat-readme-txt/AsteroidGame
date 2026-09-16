@@ -5,6 +5,8 @@ import java.awt.Composite;
 import java.awt.Graphics2D;
 import java.awt.Polygon;
 import java.awt.geom.AffineTransform;
+import java.awt.geom.Line2D;
+import java.awt.geom.Rectangle2D;
 import java.util.Random;
 
 public class VoidCreature {
@@ -17,6 +19,28 @@ public class VoidCreature {
             this.y = y;
             this.angle = 0;
         }
+    }
+    private static final BasicStroke THIN_STROKE = new BasicStroke(1f);
+    private static final BasicStroke SHELL_STROKE = new BasicStroke(1.5f);
+    private static final BasicStroke HEAD_STROKE = new BasicStroke(2f);
+    private static final BasicStroke LEG_STROKE = new BasicStroke(2.5f);
+    private static final int[][] MOUTHPARTS = {
+        {-8, 10, -12, 18}, {-4, 10, -7, 16}, {4, 10, 7, 16}, {8, 10, 12, 18}
+    };
+    // The only two rendering modes; palettes are shared by every centipede.
+    private static final Color[] ACTIVE_PALETTE = centipedePalette(255);
+    private static final Color[] GHOST_PALETTE = centipedePalette(80);
+    private final Polygon mouthTip = new Polygon(new int[3], new int[3], 3);
+
+    private static Color[] centipedePalette(int alpha) {
+        return new Color[] {
+            new Color(45, 35, 55, alpha), new Color(53, 41, 65, alpha),
+            new Color(90, 40, 120, alpha / 2), new Color(65, 55, 75, alpha),
+            new Color(30, 25, 40, alpha), new Color(55, 45, 65, alpha),
+            new Color(100, 50, 130, alpha / 3), new Color(75, 65, 85, alpha),
+            new Color(85, 75, 95, alpha), new Color(75, 65, 85, alpha / 2),
+            new Color(60, 50, 70, Math.max(0, alpha - 30))
+        };
     }
     private static final Random rand = new Random();
     
@@ -38,7 +62,13 @@ public class VoidCreature {
     private int maxSegmentCount;
     private int screenW, screenH;
     private static final double SEGMENT_SPACING = 12.0;
-    private double distSinceLastSegment = 0.0;
+    // Fixed-capacity, distance-sampled head trail. No per-tick path allocation.
+    private static final double PATH_STEP = 2.0;
+    private double[] pathX, pathY;
+    private int pathHead, pathCount;
+    private double pathRemainder, growthDistance;
+    private double headX, headY;
+    private double exitTravel, exitOffsetX, exitOffsetY;
     private double desiredAngle = 0.0;
 
     // radians per update (tune this)
@@ -75,7 +105,10 @@ public class VoidCreature {
         vc.maxSegmentCount = 100 + vc.rand.nextInt(51);
         
         // Initialize with just the head
-        vc.segments = new java.util.ArrayList<>();
+        vc.segments = new java.util.ArrayList<>(vc.maxSegmentCount);
+        int pathCapacity = (int)Math.ceil(vc.maxSegmentCount * SEGMENT_SPACING / PATH_STEP) + 2;
+        vc.pathX = new double[pathCapacity];
+        vc.pathY = new double[pathCapacity];
         
         // Determine spawn edge and initial direction
         int edge = vc.rand.nextInt(4); // 0=left, 1=right, 2=top, 3=bottom
@@ -84,26 +117,26 @@ public class VoidCreature {
         switch(edge) {
             case 0 -> {
                 // Left edge
-                startX = -5;
+                startX = 0;
                 startY = vc.rand.nextInt(screenHeight);
                 initAngle = 0; // Move right
             }
             case 1 -> {
                 // Right edge
-                startX = screenWidth + 5;
+                startX = screenWidth;
                 startY = vc.rand.nextInt(screenHeight);
                 initAngle = Math.PI; // Move left
             }
             case 2 -> {
                 // Top edge
                 startX = vc.rand.nextInt(screenWidth);
-                startY = -5;
+                startY = 0;
                 initAngle = Math.PI / 2; // Move down
             }
             default -> {
                 // Bottom edge
                 startX = vc.rand.nextInt(screenWidth);
-                startY = screenHeight + 5;
+                startY = screenHeight;
                 initAngle = -Math.PI / 2; // Move up
             }
         }
@@ -117,6 +150,9 @@ public class VoidCreature {
         BodySegment head = new BodySegment(startX, startY);
         head.angle = initAngle;
         vc.segments.add(head);
+        vc.headX = vc.pathX[0] = startX;
+        vc.headY = vc.pathY[0] = startY;
+        vc.pathCount = 1;
         
         return vc;
     }
@@ -146,6 +182,7 @@ public class VoidCreature {
     }
     
     public void update(double shipX, double shipY, boolean voidActive) {
+        isInVoid = voidActive;
         if (type == CreatureType.CENTIPEDE) {
             updateCentipede();
         } else {
@@ -161,107 +198,76 @@ public class VoidCreature {
     }
 
     private void updateCentipede() {
-        if (segments == null || segments.isEmpty()) return;
-        // Random direction changes (only when not exiting)
+        if (segments.isEmpty()) return;
         if (!exitingVoid) {
             if (dirCooldown > 0) dirCooldown--;
-
-            // Occasionally pick a new desired angle (but don’t instantly snap)
             if (dirCooldown == 0 && rand.nextInt(90) == 0) {
-                // Small-ish change instead of fully random (looks more organic)
-                double jitter = rand.nextDouble() * Math.toRadians(60); // +/- 60°
-                desiredAngle = wrapAngle(desiredAngle + jitter);
-
+                desiredAngle = wrapAngle(desiredAngle + (rand.nextDouble() * 2 - 1) * Math.toRadians(60));
                 dirCooldown = DIR_CHANGE_COOLDOWN_FRAMES;
             }
         }
-        // Smoothly steer targetAngle toward desiredAngle
-        double turnRate = exitingVoid ? MAX_TURN_RATE * 1.8 : MAX_TURN_RATE;
-        targetAngle = turnToward(targetAngle, desiredAngle, turnRate);
-        
-        // Move head
-        double headSpeed = exitingVoid ? speed * 2 : speed;
-        double oldHeadX = segments.get(0).x;
-        double oldHeadY = segments.get(0).y;
-        
-        double newHeadX = oldHeadX + headSpeed * Math.cos(targetAngle);
-        double newHeadY = oldHeadY + headSpeed * Math.sin(targetAngle);
-        
-        // Update head position
-        segments.get(0).x = newHeadX;
-        segments.get(0).y = newHeadY;
-        
-        // Calculate head angle
-        double dx = newHeadX - oldHeadX;
-        double dy = newHeadY - oldHeadY;
-        if (Math.abs(dx) > 0.1 || Math.abs(dy) > 0.1) {
-            segments.get(0).angle = Math.atan2(dy, dx);
+        targetAngle = turnToward(targetAngle, desiredAngle,
+                exitingVoid ? MAX_TURN_RATE * 1.8 : MAX_TURN_RATE);
+        double travel = exitingVoid ? speed * 2 : speed;
+        double dx = Math.cos(targetAngle), dy = Math.sin(targetAngle);
+        double oldX = headX, oldY = headY;
+        headX += travel * dx;
+        headY += travel * dy;
+
+        // Sample at fixed distances so following costs O(segment count), regardless of age.
+        for (double offset = PATH_STEP - pathRemainder; offset <= travel; offset += PATH_STEP) {
+            pathHead = (pathHead + 1) % pathX.length;
+            pathX[pathHead] = oldX + offset * dx;
+            pathY[pathHead] = oldY + offset * dy;
+            pathCount = Math.min(pathCount + 1, pathX.length);
         }
-        
-        // Wrap head if it crosses screen boundary
-        if (!exitingVoid) wrapSegment(segments.get(0));
-
-        // Accumulate head travel distance (how far the head moved this frame)
-        double headMoveDist = Math.sqrt(dx * dx + dy * dy);
-        distSinceLastSegment += headMoveDist;
-
-        // Grow body while entering / roaming (not exiting)
-        if (!exitingVoid && segments.size() < maxSegmentCount) {
-
-            // Add as many as needed to maintain spacing
-            while (distSinceLastSegment >= SEGMENT_SPACING && segments.size() < maxSegmentCount) {
-
-                // Insert new segment at the previous head position (or slightly behind it)
-                BodySegment newSeg = new BodySegment(oldHeadX, oldHeadY);
-                newSeg.angle = segments.get(0).angle;
-
-                // Insert right after head so the chain starts forming immediately
-                segments.add(1, newSeg);
-
-                distSinceLastSegment -= SEGMENT_SPACING;
+        pathRemainder = (pathRemainder + travel) % PATH_STEP;
+        if (exitingVoid) {
+            exitTravel += travel;
+        } else {
+            growthDistance = Math.min((maxSegmentCount - 1) * SEGMENT_SPACING, growthDistance + travel);
+            while (segments.size() < maxSegmentCount && segments.size() * SEGMENT_SPACING <= growthDistance) {
+                segments.add(new BodySegment(0, 0)); // Append at the tail; existing segments keep their places.
             }
         }
-        
-        // Update body segments to follow
-        for (int i = 1; i < segments.size(); i++) {
-            BodySegment current = segments.get(i);
-            BodySegment prev = segments.get(i - 1);
-            
-            dx = prev.x - current.x;
-            dy = prev.y - current.y;
-            
-            // Handle wrapping discontinuity
-            if (Math.abs(dx) > screenW / 2) {
-                dx = dx > 0 ? dx - screenW : dx + screenW;
+
+        boolean allOutside = exitingVoid;
+        for (int i = 0; i < segments.size(); i++) {
+            BodySegment segment = segments.get(i);
+            double px = headX, py = headY;
+            if (i == 0) {
+                segment.angle = targetAngle;
+            } else {
+                double sampleOffset = (i * SEGMENT_SPACING - pathRemainder) / PATH_STEP;
+                int stepsBack = (int)Math.floor(sampleOffset);
+                double fraction = sampleOffset - stepsBack;
+                int newer = Math.floorMod(pathHead - stepsBack, pathX.length);
+                int older = Math.floorMod(newer - 1, pathX.length);
+                px = pathX[newer] + (pathX[older] - pathX[newer]) * fraction;
+                py = pathY[newer] + (pathY[older] - pathY[newer]) * fraction;
+                segment.angle = Math.atan2(pathY[newer] - pathY[older], pathX[newer] - pathX[older]);
             }
-            if (Math.abs(dy) > screenH / 2) {
-                dy = dy > 0 ? dy - screenH : dy + screenH;
-            }
-            
-            double dist = Math.sqrt(dx * dx + dy * dy);
-            
-            if (dist > 0.1) {
-                double ratio = SEGMENT_SPACING / dist;
-                current.x = prev.x - dx * ratio;
-                current.y = prev.y - dy * ratio;
-                current.angle = Math.atan2(dy, dx);
-                
-                // Wrap this segment if needed
-                if (!exitingVoid) wrapSegment(current);
-            }
+            // Each segment follows the old wrapped route until it reaches the exit-start point.
+            boolean onExitPath = exitingVoid && exitTravel >= i * SEGMENT_SPACING;
+            segment.x = onExitPath ? px - exitOffsetX : wrapCoordinate(px, screenW);
+            segment.y = onExitPath ? py - exitOffsetY : wrapCoordinate(py, screenH);
+            if (!onExitPath || !isOutside(segment, 100)) allOutside = false;
         }
-        
-        // Update centipede position to head
         x = segments.get(0).x;
         y = segments.get(0).y;
-        
-        // Remove tail segments that go offscreen when exiting
-        if (exitingVoid) {
-            segments.removeIf(seg -> 
-                seg.x < -100 || seg.x > screenW + 100 || 
-                seg.y < -100 || seg.y > screenH + 100
-            );
-        }
+        // Keep the original head as the controller until the entire tail has left.
+        if (allOutside) segments.clear();
+    }
+
+    private static double wrapCoordinate(double value, int extent) {
+        if (value >= 0 && value <= extent) return value;
+        double wrapped = value % extent;
+        return wrapped < 0 ? wrapped + extent : wrapped;
+    }
+
+    private boolean isOutside(BodySegment segment, int margin) {
+        return segment.x < -margin || segment.x > screenW + margin
+                || segment.y < -margin || segment.y > screenH + margin;
     }
 
     private static double wrapAngle(double a) {
@@ -278,19 +284,14 @@ public class VoidCreature {
         return wrapAngle(current + delta);
     }
     
-    private void wrapSegment(BodySegment seg) {
-        if (seg.x < 0) seg.x += screenW;
-        else if (seg.x > screenW) seg.x -= screenW;
-        
-        if (seg.y < 0) seg.y += screenH;
-        else if (seg.y > screenH) seg.y -= screenH;
-    }
-
     public void startExitingVoid() {
         if (type != CreatureType.CENTIPEDE) return;
         if (exitingVoid) return;
 
         exitingVoid = true;
+        exitTravel = 0;
+        exitOffsetX = headX - x;
+        exitOffsetY = headY - y;
 
         // Head towards nearest screen edge
         double toLeft = x;
@@ -300,10 +301,18 @@ public class VoidCreature {
 
         double min = Math.min(Math.min(toLeft, toRight), Math.min(toTop, toBottom));
 
-        if (min == toLeft) targetAngle = Math.PI;
-        else if (min == toRight) targetAngle = 0;
-        else if (min == toTop) targetAngle = -Math.PI / 2;
-        else targetAngle = Math.PI / 2;
+        if (min == toLeft) desiredAngle = Math.PI;
+        else if (min == toRight) desiredAngle = 0;
+        else if (min == toTop) desiredAngle = -Math.PI / 2;
+        else desiredAngle = Math.PI / 2;
+    }
+
+    public boolean isExitingVoid() { return exitingVoid; }
+
+    public void updateDimensions(int width, int height) {
+        if (width <= 0 || height <= 0) return;
+        screenW = width;
+        screenH = height;
     }
 
     public boolean isFullyOffscreen() {
@@ -322,37 +331,60 @@ public class VoidCreature {
         return currentHP <= 0;
     }
     
-    public boolean intersects(Polygon shipBounds) {
-        if (!isInVoid) return false;
-        
+    public boolean intersects(Polygon bounds) {
+        if (!isInVoid || isDead() || bounds.npoints == 0) return false;
+        Rectangle2D broadBounds = bounds.getBounds();
         if (type == CreatureType.CENTIPEDE) {
-            for (BodySegment seg : segments) {
-                for (int i = 0; i < shipBounds.npoints; i++) {
-                    double dx = shipBounds.xpoints[i] - seg.x;
-                    double dy = shipBounds.ypoints[i] - seg.y;
-                    if (Math.sqrt(dx * dx + dy * dy) < 8) {
-                        return true;
-                    }
-                }
+            for (BodySegment segment : segments) {
+                if (intersectsCircle(bounds, broadBounds, segment.x, segment.y, 8)) return true;
             }
             return false;
         }
-        
-        // Specter collision
-        int collisionRadius = (int)(size * 0.7);
-        for (int i = 0; i < shipBounds.npoints; i++) {
-            double dx = shipBounds.xpoints[i] - x;
-            double dy = shipBounds.ypoints[i] - y;
-            if (Math.sqrt(dx * dx + dy * dy) < collisionRadius/2) {
-                return true;
-            }
+        return intersectsCircle(bounds, broadBounds, x, y, (int)(size * 0.7) / 2);
+    }
+
+    private static boolean intersectsCircle(Polygon bounds, Rectangle2D broadBounds, double cx, double cy, double radius) {
+        if (!broadBounds.intersects(cx - radius, cy - radius, radius * 2, radius * 2)) return false;
+        if (bounds.contains(cx, cy)) return true;
+        double radiusSquared = radius * radius;
+        for (int i = 0; i < bounds.npoints; i++) {
+            int next = (i + 1) % bounds.npoints;
+            if (Line2D.ptSegDistSq(bounds.xpoints[i], bounds.ypoints[i],
+                    bounds.xpoints[next], bounds.ypoints[next], cx, cy) < radiusSquared) return true;
         }
         return false;
     }
-    
+
+    public boolean intersects(Rectangle2D bounds) {
+        if (!isInVoid || isDead()) return false;
+        if (type == CreatureType.CENTIPEDE) {
+            for (BodySegment segment : segments) {
+                if (intersectsCircle(bounds, segment.x, segment.y, 8)) return true;
+            }
+            return false;
+        }
+        return intersectsCircle(bounds, x, y, (int)(size * 0.7) / 2);
+    }
+
+    private static boolean intersectsCircle(Rectangle2D bounds, double cx, double cy, double radius) {
+        double dx = cx - Math.max(bounds.getMinX(), Math.min(cx, bounds.getMaxX()));
+        double dy = cy - Math.max(bounds.getMinY(), Math.min(cy, bounds.getMaxY()));
+        return dx * dx + dy * dy < radius * radius;
+    }
+
+    public boolean intersects(Line2D line) {
+        if (!isInVoid || isDead()) return false;
+        if (type == CreatureType.CENTIPEDE) {
+            for (BodySegment segment : segments) {
+                if (line.ptSegDistSq(segment.x, segment.y) < 64) return true;
+            }
+            return false;
+        }
+        double radius = (int)(size * 0.7) / 2;
+        return line.ptSegDistSq(x, y) < radius * radius;
+    }
+
     public void draw(Graphics2D g2d, boolean voidMode) {
-        isInVoid = voidMode;
-        
         if (!voidMode) {
             drawGhostly(g2d);
         } else {
@@ -460,12 +492,14 @@ public class VoidCreature {
     private void drawCentipede(Graphics2D g2d, int baseAlpha) {
         if (segments == null || segments.isEmpty()) return;
         
+        Color[] palette = baseAlpha == 255 ? ACTIVE_PALETTE : GHOST_PALETTE;
+        AffineTransform oldTransform = g2d.getTransform();
+        java.awt.Stroke oldStroke = g2d.getStroke();
         // Draw from tail to head so head appears on top
         for (int i = segments.size() - 1; i >= 0; i--) {
             BodySegment seg = segments.get(i);
             
-            // Save transform
-            AffineTransform oldTransform = g2d.getTransform();
+            if (isOutside(seg, 64)) continue;
             g2d.translate(seg.x, seg.y);
             g2d.rotate(seg.angle);
             
@@ -474,61 +508,50 @@ public class VoidCreature {
             int segWidth = (int)(20 * segmentRatio);  // Increased from 16
             int segLength = 16;  // Increased from 14
             
-            int alpha = Math.max(0, Math.min(255, baseAlpha));
             
             // Draw legs FIRST (so they appear under the body)
             if (i > 0 && i % 3 == 0) {  // Draw legs every 3 segments
                 double legPhase = limbPhase + i * 0.4;
                 
                 // Left side legs
-                drawLongerTopDownLeg(g2d, -segWidth/2 - 2, -4, legPhase, true, alpha);
-                drawLongerTopDownLeg(g2d, -segWidth/2 - 2, 4, legPhase + 0.5, true, alpha);
+                drawLongerTopDownLeg(g2d, -segWidth/2 - 2, -4, legPhase, true, palette[10]);
+                drawLongerTopDownLeg(g2d, -segWidth/2 - 2, 4, legPhase + 0.5, true, palette[10]);
                 
                 // Right side legs
-                drawLongerTopDownLeg(g2d, segWidth/2 + 2, -4, legPhase + Math.PI, false, alpha);
-                drawLongerTopDownLeg(g2d, segWidth/2 + 2, 4, legPhase + Math.PI + 0.5, false, alpha);
+                drawLongerTopDownLeg(g2d, segWidth/2 + 2, -4, legPhase + Math.PI, false, palette[10]);
+                drawLongerTopDownLeg(g2d, segWidth/2 + 2, 4, legPhase + Math.PI + 0.5, false, palette[10]);
             }
             
             // Main body segment with darker colors
-            Color segmentColor = new Color(
-                Math.max(0, Math.min(255, 45 + (i % 2) * 8)),
-                Math.max(0, Math.min(255, 35 + (i % 2) * 6)),
-                Math.max(0, Math.min(255, 55 + (i % 2) * 10)),
-                alpha
-            );
-            g2d.setColor(segmentColor);
+            g2d.setColor(palette[i % 2]);
             g2d.fillOval(-segWidth/2, -segLength/2, segWidth, segLength);
             
             // Minimal purple accent stripes (every 10th segment)
             if (i % 10 == 0) {
-                Color accentColor = new Color(90, 40, 120, alpha / 2);
-                g2d.setColor(accentColor);
-                g2d.setStroke(new BasicStroke(1.5f));
+                g2d.setColor(palette[2]);
+                g2d.setStroke(SHELL_STROKE);
                 g2d.drawArc(-segWidth/2 + 2, -segLength/2 + 2, segWidth - 4, segLength - 4, 0, 360);
             }
             
             // Exoskeleton plates
-            Color plateColor = new Color(
-                Math.max(0, Math.min(255, 65)),
-                Math.max(0, Math.min(255, 55)),
-                Math.max(0, Math.min(255, 75)),
-                alpha
-            );
-            g2d.setColor(plateColor);
-            g2d.setStroke(new BasicStroke(1.5f));
+            g2d.setColor(palette[3]);
+            g2d.setStroke(SHELL_STROKE);
             
             // Outer shell edge
             g2d.drawOval(-segWidth/2, -segLength/2, segWidth, segLength);
             
-            // Inner segment lines for texture
-            g2d.setStroke(new BasicStroke(1f));
-            g2d.drawArc(-segWidth/2 + 2, -segLength/2 + 2, segWidth - 4, segLength - 4, 0, 180);
-            g2d.drawArc(-segWidth/2 + 2, -segLength/2 + 2, segWidth - 4, segLength - 4, 180, 180);
+            // Keep texture on every third plate. At full length, drawing two
+            // extra arcs on all 150 segments dominated the browser renderer.
+            if (i % 3 == 0) {
+                g2d.setStroke(THIN_STROKE);
+                g2d.drawArc(-segWidth/2 + 2, -segLength/2 + 2, segWidth - 4, segLength - 4, 0, 180);
+                g2d.drawArc(-segWidth/2 + 2, -segLength/2 + 2, segWidth - 4, segLength - 4, 180, 180);
+            }
             
             // Joint line between segments
-            if (i < segments.size() - 1) {
-                g2d.setColor(new Color(30, 25, 40, alpha));
-                g2d.setStroke(new BasicStroke(1.5f));
+            if (i < segments.size() - 1 && i % 2 == 0) {
+                g2d.setColor(palette[4]);
+                g2d.setStroke(SHELL_STROKE);
                 g2d.drawLine(-segWidth/2, -segLength/2 + 1, segWidth/2, -segLength/2 + 1);
             }
             
@@ -539,39 +562,39 @@ public class VoidCreature {
         // Draw head separately
         BodySegment head = segments.get(0);
         
-        AffineTransform oldTransform = g2d.getTransform();
+        if (isOutside(head, 64)) {
+            g2d.setStroke(oldStroke);
+            return;
+        }
         g2d.translate(head.x, head.y);
         g2d.rotate(head.angle);
         
         // Head body - larger
-        g2d.setColor(new Color(55, 45, 65, baseAlpha));
+        g2d.setColor(palette[5]);
         g2d.fillOval(-14, -12, 28, 24);
         
         // Subtle purple glow on head
-        g2d.setColor(new Color(100, 50, 130, baseAlpha / 3));
+        g2d.setColor(palette[6]);
         g2d.fillOval(-16, -14, 32, 28);
         
         // Head exoskeleton ridges
-        g2d.setColor(new Color(75, 65, 85, baseAlpha));
-        g2d.setStroke(new BasicStroke(2));
+        g2d.setColor(palette[7]);
+        g2d.setStroke(HEAD_STROKE);
         g2d.drawOval(-14, -12, 28, 24);
         g2d.drawArc(-12, -10, 24, 20, 20, 140);
         
         // Mandibles (same as before)
-        int[][] mouthparts = {
-            {-8, 10, -12, 18},
-            {-4, 10, -7, 16},
-            {4, 10, 7, 16},
-            {8, 10, 12, 18}
-        };
-        
-        g2d.setColor(new Color(85, 75, 95, baseAlpha));
-        g2d.setStroke(new BasicStroke(2f));
-        for (int[] mp : mouthparts) {
+        g2d.setColor(palette[8]);
+        g2d.setStroke(HEAD_STROKE);
+        for (int[] mp : MOUTHPARTS) {
             g2d.drawLine(mp[0], mp[1], mp[2], mp[3]);
-            int[] tipX = {mp[2], mp[2] - 2, mp[2] + 2};
-            int[] tipY = {mp[3] + 2, mp[3], mp[3]};
-            g2d.fillPolygon(tipX, tipY, 3);
+            mouthTip.xpoints[0] = mp[2];
+            mouthTip.xpoints[1] = mp[2] - 2;
+            mouthTip.xpoints[2] = mp[2] + 2;
+            mouthTip.ypoints[0] = mp[3] + 2;
+            mouthTip.ypoints[1] = mouthTip.ypoints[2] = mp[3];
+            mouthTip.invalidate();
+            g2d.fillPolygon(mouthTip);
         }
         
         // Antennae (same as before)
@@ -587,17 +610,17 @@ public class VoidCreature {
             int tipX = (int)(baseX + sway + 12 * Math.cos(tentacleBaseAngle));
             int tipY = (int)(baseY - 12);
             
-            g2d.setColor(new Color(75, 65, 85, baseAlpha / 2));
-            g2d.setStroke(new BasicStroke(1.5f));
+            g2d.setColor(palette[9]);
+            g2d.setStroke(SHELL_STROKE);
             g2d.drawLine(baseX, baseY, tipX, tipY);
             g2d.fillOval(tipX - 2, tipY - 2, 4, 4);
         }
         
-        g2d.setStroke(new BasicStroke(1));
+        g2d.setStroke(oldStroke);
         g2d.setTransform(oldTransform);
     }
 
-    private void drawLongerTopDownLeg(Graphics2D g2d, int startX, int startY, double phase, boolean isLeft, int alpha) {
+    private void drawLongerTopDownLeg(Graphics2D g2d, int startX, int startY, double phase, boolean isLeft, Color color) {
         // Three-section leg extending outward from body (longer)
         double extension = 18 + 8 * Math.sin(phase); // Increased extension
         double angle = isLeft ? -Math.PI/2.5 : Math.PI/2.5;
@@ -619,8 +642,8 @@ public class VoidCreature {
         int tipX = (int)(mid2X + extension * 0.25 * Math.cos(thirdAngle));
         int tipY = (int)(mid2Y + extension * 0.25 * Math.sin(thirdAngle));
         
-        g2d.setColor(new Color(60, 50, 70, Math.max(0, Math.min(255, alpha - 30))));
-        g2d.setStroke(new BasicStroke(2.5f));
+        g2d.setColor(color);
+        g2d.setStroke(LEG_STROKE);
         
         // First segment
         g2d.drawLine(startX, startY, mid1X, mid1Y);
@@ -629,20 +652,20 @@ public class VoidCreature {
         g2d.fillOval(mid1X - 2, mid1Y - 2, 4, 4);
         
         // Second segment
-        g2d.setStroke(new BasicStroke(2f));
+        g2d.setStroke(HEAD_STROKE);
         g2d.drawLine(mid1X, mid1Y, mid2X, mid2Y);
         
         // Second joint
         g2d.fillOval(mid2X - 2, mid2Y - 2, 4, 4);
         
         // Third segment (thinnest)
-        g2d.setStroke(new BasicStroke(1.5f));
+        g2d.setStroke(SHELL_STROKE);
         g2d.drawLine(mid2X, mid2Y, tipX, tipY);
         
         // Foot
         g2d.fillOval(tipX - 2, tipY - 2, 4, 4);
         
-        g2d.setStroke(new BasicStroke(1));
+        g2d.setStroke(THIN_STROKE);
     }
     
     private void drawHPBar(Graphics2D g2d) {

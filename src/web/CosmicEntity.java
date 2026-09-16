@@ -68,6 +68,7 @@ public class CosmicEntity {
     }
     
     public void update(double shipX, double shipY, boolean voidActive) {
+        isInVoid = voidActive;
         // Only chase the ship when NOT in void
         if (!voidActive) {
             updateTarget(shipX, shipY);
@@ -81,6 +82,7 @@ public class CosmicEntity {
     }
 
     public void updateWithBoids(double shipX, double shipY, java.util.List<CosmicEntity> neighbors, boolean voidActive) {
+        isInVoid = voidActive;
         // Only apply boids when NOT in void
         if (voidActive) {
             pulse += 0.1f;
@@ -222,9 +224,7 @@ public class CosmicEntity {
     }
     
     public void draw(Graphics2D g2d, boolean voidToggled) {
-        isInVoid = voidToggled;
-        
-        if (isInVoid) {
+        if (voidToggled) {
             Composite old = g2d.getComposite();
             g2d.setComposite(AlphaComposite.getInstance(AlphaComposite.SRC_OVER, 0.15f));
             drawCosmicEntityBody(g2d, 40);
