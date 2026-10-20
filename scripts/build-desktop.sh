@@ -10,10 +10,10 @@ JAR_PATH="$BUILD_DIR/AsteroidGame.jar"
 rm -rf "$BUILD_DIR"
 mkdir -p "$CLASSES_DIR"
 
-javac --release 17 -d "$CLASSES_DIR" "$ROOT_DIR"/src/web/*.java
+javac --release 17 -d "$CLASSES_DIR" "$ROOT_DIR"/src/desktop/*.java
 
-if [ -d "$ROOT_DIR/src/web/assets" ]; then
-  cp -R "$ROOT_DIR/src/web/assets" "$CLASSES_DIR/assets"
+if [ -d "$ROOT_DIR/src/desktop/assets" ]; then
+  cp -R "$ROOT_DIR/src/desktop/assets" "$CLASSES_DIR/assets"
 fi
 
 jar --create --file "$JAR_PATH" --main-class DesktopLauncher -C "$CLASSES_DIR" .

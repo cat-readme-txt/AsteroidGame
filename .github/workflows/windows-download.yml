@@ -1,0 +1,33 @@
+name: Windows download
+
+on:
+  workflow_dispatch:
+
+jobs:
+  package:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - name: Build self-contained Windows app
+        shell: pwsh
+        run: ./scripts/package-windows.ps1
+      - name: Run Windows regression suite
+        shell: pwsh
+        run: |
+          $tests = @(Get-ChildItem tests -Filter '*RegressionTest.java' | ForEach-Object { $_.FullName })
+          & javac --release 17 -cp build/windows/classes -d build/windows/classes @tests
+          if ($LASTEXITCODE -ne 0) { throw 'Test compilation failed.' }
+          foreach ($test in $tests) {
+            $class = [System.IO.Path]::GetFileNameWithoutExtension($test)
+            & java -Djava.awt.headless=true -cp build/windows/classes $class
+            if ($LASTEXITCODE -ne 0) { throw "$class failed." }
+          }
+      - uses: actions/upload-artifact@v4
+        with:
+          name: VoidNavigator-Windows-x64-0
+          path: dist/VoidNavigator-Windows-x64-0.zip
+          if-no-files-found: error

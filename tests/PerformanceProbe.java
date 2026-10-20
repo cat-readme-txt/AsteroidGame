@@ -8,18 +8,18 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Collection;
 import java.util.Comparator;
-import java.util.Random;
 import javax.swing.SwingUtilities;
 import javax.swing.Timer;
 
 /**
  * Native Java2D headless microbenchmark; reports measurements, not pass/fail thresholds.
- * Compile with the game sources and run with src/web on the classpath for font assets.
+ * Compile with the game sources and run with src/desktop on the classpath for font assets.
  * Optional arguments: label, warmup frame count, measured frame count.
  */
 public final class PerformanceProbe {
     private static final int WIDTH = 1_200;
     private static final int HEIGHT = 700;
+    private static final int ASTEROID_COUNT = 24;
 
     public static void main(String[] args) throws Exception {
         System.setProperty("java.awt.headless", "true");
@@ -95,13 +95,11 @@ public final class PerformanceProbe {
         field(AsteroidGame.class, "level").setInt(game, 0);
         field(AsteroidGame.class, "levelStarting").setBoolean(game, false);
         field(AsteroidGame.class, "levelTimer").setInt(game, Integer.MAX_VALUE);
-        field(AsteroidGame.class, "fadeActive").setBoolean(game, true);
-        field(AsteroidGame.class, "fadeTimer").setInt(game, 100_000);
         @SuppressWarnings("unchecked")
         Collection<Asteroid> asteroids = (Collection<Asteroid>) field(AsteroidGame.class, "asteroids").get(game);
-        for (int i = 0; i < 80; i++) {
+        for (int i = 0; i < ASTEROID_COUNT; i++) {
             asteroids.add(new Asteroid(Asteroid.Size.SMALL,
-                    50 + (i % 10) * 110, 50 + (i / 10) * 80, 0, 0));
+                    50 + (i % 8) * 140, 50 + (i / 8) * 180, 0, 0));
         }
         BufferedImage gameplayCanvas = new BufferedImage(WIDTH, HEIGHT, BufferedImage.TYPE_INT_ARGB);
         Graphics2D gameplayGraphics = gameplayCanvas.createGraphics();
@@ -111,25 +109,9 @@ public final class PerformanceProbe {
                 else fixedTick.invoke(game);
                 game.paint(gameplayGraphics);
             };
-            measure(label, "gameplay_80_asteroids", gameplayFrame, allocationBean, warmup, measured);
+            measure(label, "gameplay_24_asteroids", gameplayFrame, allocationBean, warmup, measured);
         } finally {
             gameplayGraphics.dispose();
-        }
-
-        ((Random) field(VoidCreature.class, "rand").get(null)).setSeed(173L);
-        VoidCreature centipede = VoidCreature.createCentipede(WIDTH, HEIGHT, 1);
-        for (int frame = 0; frame < 3_000; frame++) centipede.update(600, 350, true);
-        BufferedImage creatureCanvas = new BufferedImage(WIDTH, HEIGHT, BufferedImage.TYPE_INT_ARGB);
-        Graphics2D creatureGraphics = creatureCanvas.createGraphics();
-        try {
-            Frame creatureFrame = () -> {
-                centipede.update(600, 350, true);
-                centipede.draw(creatureGraphics, true);
-            };
-            measure(label, "centipede_update_draw", creatureFrame, allocationBean, warmup, measured);
-            System.out.printf("%s centipede segments=%d%n", label, collectionSize(centipede, "segments"));
-        } finally {
-            creatureGraphics.dispose();
         }
 
         BufferedImage componentCanvas = new BufferedImage(WIDTH, HEIGHT, BufferedImage.TYPE_INT_ARGB);
@@ -143,11 +125,11 @@ public final class PerformanceProbe {
 
             SpaceGrid isolatedGrid = new SpaceGrid();
             java.util.List<Asteroid> gridAsteroids = new java.util.ArrayList<>();
-            for (int i = 0; i < 80; i++) {
+            for (int i = 0; i < ASTEROID_COUNT; i++) {
                 gridAsteroids.add(new Asteroid(Asteroid.Size.SMALL,
-                        50 + (i % 10) * 110, 50 + (i / 10) * 80, 0, 0));
+                        50 + (i % 8) * 140, 50 + (i / 8) * 180, 0, 0));
             }
-            measure(label, "component_grid_80_asteroids",
+            measure(label, "component_grid_24_asteroids",
                     () -> isolatedGrid.draw(componentGraphics, WIDTH, HEIGHT,
                             gridAsteroids, java.util.List.of()),
                     allocationBean, warmup, measured);
@@ -162,15 +144,15 @@ public final class PerformanceProbe {
             measure(label, "component_stars_150", () -> isolatedStars.draw(componentGraphics),
                     allocationBean, warmup, measured);
 
-            measure(label, "component_draw_80_asteroids", () -> {
+            measure(label, "component_draw_24_asteroids", () -> {
                 for (Asteroid asteroid : gridAsteroids) asteroid.draw(componentGraphics);
             }, allocationBean, warmup, measured);
 
             if (fixedTick != null) {
-                measure(label, "component_game_update_80_asteroids",
+                measure(label, "component_game_update_24_asteroids",
                         () -> fixedTick.invoke(game), allocationBean, warmup, measured);
             }
-            measure(label, "component_game_paint_80_asteroids",
+            measure(label, "component_game_paint_24_asteroids",
                     () -> game.paint(componentGraphics), allocationBean, warmup, measured);
 
             Method hud = AsteroidGame.class.getDeclaredMethod("drawEnhancedHUD", Graphics2D.class);
@@ -181,12 +163,14 @@ public final class PerformanceProbe {
             AbilityManager probeAbilities = (AbilityManager) field(AsteroidGame.class, "abilityManager").get(game);
             AbilityLoadout probeLoadout = (AbilityLoadout) field(AsteroidGame.class, "abilityLoadout").get(game);
             measure(label, "component_ability_bar",
-                    () -> probeAbilities.drawAbilityBar(componentGraphics, WIDTH, HEIGHT, probeLoadout),
+                    () -> probeAbilities.drawAbilityBar(componentGraphics, WIDTH, HEIGHT, probeLoadout, "V"),
                     allocationBean, warmup, measured);
 
-            ShipLevel probeLevel = (ShipLevel) field(AsteroidGame.class, "shipLevel").get(game);
-            measure(label, "component_level_ui",
-                    () -> probeLevel.drawLevelUI(componentGraphics, WIDTH, HEIGHT),
+            ConstructPanel constructPanel = new ConstructPanel();
+            ConstructPanel.Model constructModel = new ConstructPanel.Model(0, new int[4], new int[4],
+                    new String[] {"void", null, null, null}, -1);
+            measure(label, "component_construct_panel",
+                    () -> constructPanel.draw(componentGraphics, WIDTH, HEIGHT, constructModel),
                     allocationBean, warmup, measured);
         } finally {
             componentGraphics.dispose();

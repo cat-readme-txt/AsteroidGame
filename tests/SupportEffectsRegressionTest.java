@@ -29,12 +29,12 @@ public final class SupportEffectsRegressionTest {
             for (int paint = 0; paint < 300; paint++) galaxy.draw(graphics, 320, 240);
             check(cached.graphicsCreated == 0, "Idle repaint must reuse the nebula cache");
 
-            for (int tick = 0; tick < 12; tick++) galaxy.update();
+            for (int tick = 0; tick < 30; tick++) galaxy.update();
             galaxy.draw(graphics, 320, 240);
             galaxy.draw(graphics, 320, 240);
-            check(cached.graphicsCreated == 1, "Twelve updates must rebuild only once");
+            check(cached.graphicsCreated == 1, "Thirty updates must rebuild only once");
 
-            for (int tick = 0; tick < 13; tick++) galaxy.update();
+            for (int tick = 0; tick < 31; tick++) galaxy.update();
             galaxy.draw(graphics, 320, 240);
             check(cached.graphicsCreated == 2, "Skipped paints must not lose a pending rebuild");
 
@@ -48,7 +48,7 @@ public final class SupportEffectsRegressionTest {
         }
     }
 
-    private static void testGridAfterAttractorsDisappear() {
+    private static void testGridAfterAttractorsDisappear() throws Exception {
         SpaceGrid grid = new SpaceGrid();
         List<Asteroid> asteroids = new ArrayList<>();
         List<BlackHole> holes = new ArrayList<>();
@@ -69,6 +69,18 @@ public final class SupportEffectsRegressionTest {
         actual = drawGrid(grid, 320, 720, asteroids, holes);
         expected = drawGrid(new SpaceGrid(), 320, 720, asteroids, holes);
         check(Arrays.equals(pixels(expected), pixels(actual)), "Grid resize must remain correct");
+
+        Asteroid moving = new Asteroid(Asteroid.Size.SMALL, 100, 100, 10, 0);
+        asteroids.add(moving);
+        drawGrid(grid, 320, 720, asteroids, holes);
+        CountingImage cached = new CountingImage(160, 360);
+        field(SpaceGrid.class, "cachedLayer").set(grid, cached);
+        for (int paint = 0; paint < 24; paint++) drawGrid(grid, 320, 720, asteroids, holes);
+        check(cached.graphicsCreated == 0, "Stationary attractors must reuse the grid image");
+        moving.update();
+        field(SpaceGrid.class, "frameCounter").setInt(grid, 0);
+        drawGrid(grid, 320, 720, asteroids, holes);
+        check(cached.graphicsCreated == 1, "Moved attractors must refresh the grid image");
     }
 
     private static BufferedImage drawGrid(SpaceGrid grid, int width, int height,
