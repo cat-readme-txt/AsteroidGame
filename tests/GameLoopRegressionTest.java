@@ -30,6 +30,7 @@ public final class GameLoopRegressionTest {
                 try {
                     testBulletLifetimeAndWrapping();
                     testShipGeometryCache();
+                    testVoidPropulsion();
                     testAsteroidRetirement();
                     testLaserLifecycle();
                     testDeveloperTerminalAndVoidState();
@@ -111,6 +112,66 @@ public final class GameLoopRegressionTest {
         check(Math.abs(ship.getTipPosition().x - 410) < 0.00001
                         && Math.abs(ship.getTipPosition().y - 300) < 0.00001,
                 "rotated shot origin follows ship angle");
+    }
+
+    private static void testVoidPropulsion() {
+        Ship hyperShip = new Ship();
+        hyperShip.setHyper(true);
+        Ship voidShip = new Ship();
+        voidShip.getVoidEnergy().setEnergyForDeveloper(25);
+        double startingFuel = voidShip.getFuel();
+
+        hyperShip.applyThrust();
+        hyperShip.updatePhysics();
+        voidShip.applyThrust();
+        voidShip.updatePhysics();
+        check(voidShip.getVelocity() > hyperShip.getVelocity(),
+                "Void thrust accelerates faster than M-AM hyper thrust");
+        check(voidShip.getFuel() == startingFuel
+                        && Math.abs(voidShip.getVoidEnergy().getEnergy() - 24.9) < 0.00001,
+                "stored Void energy powers thrust without spending M-AM");
+        double initialVoidAcceleration = voidShip.getVelocity();
+
+        for (int tick = 1; tick < 100; tick++) {
+            hyperShip.applyThrust();
+            hyperShip.updatePhysics();
+            voidShip.applyThrust();
+            voidShip.updatePhysics();
+        }
+        check(voidShip.getVelocity() > hyperShip.getVelocity()
+                        && voidShip.getFuel() == startingFuel,
+                "Void propulsion maintains a higher speed limit without fuel cost");
+
+        Ship voidHyperShip = new Ship();
+        voidHyperShip.setHyper(true);
+        voidHyperShip.getVoidEnergy().setEnergyForDeveloper(25);
+        voidHyperShip.applyThrust();
+        voidHyperShip.updatePhysics();
+        check(voidHyperShip.getVelocity() > initialVoidAcceleration
+                        && voidHyperShip.getFuel() == startingFuel,
+                "hyper with Void energy accelerates further without spending fuel");
+
+        Ship ordinaryTurn = new Ship();
+        Ship chargedTurn = new Ship();
+        chargedTurn.getVoidEnergy().setEnergyForDeveloper(10);
+        ordinaryTurn.rotateLeft();
+        chargedTurn.rotateLeft();
+        check(Math.abs(ordinaryTurn.getAngle() - chargedTurn.getAngle()) < 0.00001
+                        && Math.abs(chargedTurn.getVoidEnergy().getEnergy() - 9.9) < 0.00001,
+                "stored Void energy drains on turns without changing turn speed");
+
+        Ship activeVoidShip = new Ship();
+        activeVoidShip.getVoidEnergy().setEnergyForDeveloper(40);
+        activeVoidShip.getVoidEnergy().activate();
+        activeVoidShip.applyThrust();
+        check(activeVoidShip.getFuel() == startingFuel
+                        && activeVoidShip.getVoidEnergy().getEnergy() > 40,
+                "Void thrust uses no M-AM and still gains energy below the modulator threshold");
+        activeVoidShip.getVoidEnergy().setModulatorLevel(1);
+        activeVoidShip.getVoidEnergy().setEnergyForDeveloper(60);
+        activeVoidShip.applyThrust();
+        check(activeVoidShip.getVoidEnergy().getEnergy() < 60,
+                "modulated Void thrust drains energy above fifty");
     }
 
     private static void testAsteroidRetirement() {

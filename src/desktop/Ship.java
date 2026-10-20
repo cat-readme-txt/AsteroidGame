@@ -37,6 +37,11 @@ public class Ship {
 	private final double hyperMultiplier = 4;
 	private final double hyperTurnMultiplier = 8.5;
 	private final double hyperFuelCost = 4;
+	private final double voidThrustMultiplier = 5;
+	private final double voidHyperThrustMultiplier = 6;
+	private final double voidSpeedLimit = 9;
+	private final double voidHyperSpeedLimit = 10;
+	private boolean voidPoweredThisTick;
 
     // Void
 	private VoidEnergy voidEnergy = new VoidEnergy();
@@ -50,20 +55,19 @@ public class Ship {
 	private ShipTrail trail = new ShipTrail();
 
 	public void applyThrust() {
-	    double multiplier;
-	    double ax, ay;
 	    if (voidEnergy.getEnergy() > 0) {
-	        multiplier = hyper ? hyperMultiplier * 1.2 : 1.2; // 20% faster with void energy
-	        ax = multiplier * thrustPower * Math.sin(angle);
-	        ay = -multiplier * thrustPower * Math.cos(angle);
-	        vx += ax;
-	        vy += ay;
-	        
+	        double multiplier = hyper ? voidHyperThrustMultiplier : voidThrustMultiplier;
+	        vx += multiplier * thrustPower * Math.sin(angle);
+	        vy -= multiplier * thrustPower * Math.cos(angle);
 			if (voidEnergy.isActive()) {
-				voidEnergy.absorbForAction(0.1);		// Absorb energy if in the Void, otherwise dissipate
-			} else if (voidEnergy.getEnergy() > 0) {
+				voidEnergy.absorbForAction(0.1);
+			} else {
 				voidEnergy.dissipateForAction(0.1);
 			}
+			voidPoweredThisTick = true;
+			isThrusting = true;
+			if (thrustDuration < maxThrustDuration) thrustDuration++;
+			return;
 	    }
 	    
 	    isThrusting = true;
@@ -77,11 +81,9 @@ public class Ship {
 			}
 		}
 			
-		multiplier = hyper ? hyperMultiplier : 1;
-		ax = multiplier * thrustPower * Math.sin(angle);
-		ay = -multiplier * thrustPower * Math.cos(angle);
-		vx += ax;
-		vy += ay;
+		double multiplier = hyper ? hyperMultiplier : 1;
+		vx += multiplier * thrustPower * Math.sin(angle);
+		vy -= multiplier * thrustPower * Math.cos(angle);
 		if (!infiniteFuel) {
 			fuel -= hyper ? hyperFuelCost : 1;
 			if (fuel < 0) fuel = 0;
@@ -117,10 +119,13 @@ public class Ship {
     }
     
     public void updatePhysics() {		
-		//clamp speed
-		double maxSpeed = hyper ? 8.0 : 2.5;
+		// Keep the Void speed limit for the tick that spends the last stored energy.
+		double maxSpeed = voidPoweredThisTick || voidEnergy.getEnergy() > 0
+				? (hyper ? voidHyperSpeedLimit : voidSpeedLimit)
+				: (hyper ? 8.0 : 2.5);
 		vx = Math.max(-maxSpeed, Math.min(maxSpeed, vx));
 		vy = Math.max(-maxSpeed, Math.min(maxSpeed, vy));
+		voidPoweredThisTick = false;
 
 		x += vx;
 	    y += vy;

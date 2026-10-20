@@ -47,6 +47,7 @@ try {
     }
     Copy-Item (Join-Path $root "README.md") $app
     Copy-Item (Join-Path $root "GAME_MECHANICS.md") $app
+    Copy-Item (Join-Path $root "STORY.md") $app
     $stagedArchive = Join-Path $stage "$AppName-Windows-x64-0.zip"
     Compress-Archive -Path $app -DestinationPath $stagedArchive -CompressionLevel Optimal
     Copy-Item $stagedArchive $archive -Force

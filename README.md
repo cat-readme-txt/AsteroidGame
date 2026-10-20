@@ -1,6 +1,6 @@
 # VoidNavigator
 
-VoidNavigator is a desktop asteroid survival game. Fly, fight, collect matter-antimatter fuel (M-AM), enter the Void, and spend Incident Essence on ship constructions. The full rules and numeric stats are in [GAME_MECHANICS.md](GAME_MECHANICS.md).
+VoidNavigator is a desktop asteroid survival game. Fly, fight, collect matter-antimatter fuel (M-AM), enter the Void, and spend Incident Essence on ship constructions. Read the novel-style background in [STORY.md](STORY.md); the full rules and numeric stats are in [GAME_MECHANICS.md](GAME_MECHANICS.md).
 
 ## Download and play
 
@@ -18,7 +18,7 @@ The macOS app is built for Apple Silicon. The Windows app is built for x64 Windo
 
 ## First flight
 
-Choose **New Game** from the main menu. The ship starts with 500 M-AM. Destroy asteroids for more fuel and score, defeat cosmic entities and Void creatures for Incident Essence, and press **C** to spend Essence. The in-game **How to play** page and **Settings → Key bindings** show controls and allow key changes.
+Choose **New Game** from the main menu. The ship starts with 500 M-AM. Destroy asteroids for more fuel and score, defeat cosmic entities and Void creatures for Incident Essence, and press **C** to spend Essence. Stored Void energy powers fuel-free thrust faster than M-AM hyper mode; turning keeps its usual speed. The in-game **How to play** page and **Settings → Key bindings** show controls and allow key changes.
 
 | Default key | Action |
 | --- | --- |

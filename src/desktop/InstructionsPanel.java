@@ -73,11 +73,12 @@ public final class InstructionsPanel {
         y = drawInstructionHeading(g2, "COMBAT & M-AM", x, y, amber);
         y = drawInstructionControl(g2, "shoot", "Fire bullets; Void mode or stored energy fires a laser.", x, y, textWidth, amber);
         y = drawInstructionBullet(g2, "In this sci-fi setting, the ship runs on matter-antimatter (M-AM) fuel. Its highly efficient reactor turns a tiny reserve into sustained thrust and hyper mode.", x, y, textWidth, amber, body);
-        y = drawInstructionBullet(g2, "Destroy asteroids to replenish M-AM. Larger asteroids split.", x, y, textWidth, amber, body);
+        y = drawInstructionBullet(g2, "Destroy asteroids: recovered matter feeds core-powered antimatter synthesis and replenishes M-AM. Larger asteroids split.", x, y, textWidth, amber, body);
         y += 14;
 
         y = drawInstructionHeading(g2, "VOID WORLD", x, y, violet);
         y = drawInstructionBullet(g2, "Use Void to cross asteroids and build energy for lasers.", x, y, textWidth, violet, body);
+        y = drawInstructionBullet(g2, "Stored Void energy gives fuel-free thrust faster than M-AM hyper; hyper adds more speed. Turning rate stays the same. Outside Void, thrust, turns, and lasers discharge stored energy.", x, y, textWidth, violet, body);
         y = drawInstructionBullet(g2, "Void energy at 100 ends the run unless a charged Shield utility clears it.", x, y, textWidth, violet, new Color(255, 190, 190));
         y = drawInstructionBullet(g2, "Void creatures are lethal on contact.", x, y, textWidth, violet, body);
         y += 14;

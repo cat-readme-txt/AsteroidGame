@@ -16,7 +16,7 @@ mkdir -p "$PACKAGE_DIR"
 cp "$ROOT_DIR/build/desktop/AsteroidGame.jar" "$PACKAGE_DIR/"
 tr -d '\r' < "$ROOT_DIR/launchers/Play-VoidNavigator.bat" \
   | awk '{printf "%s\r\n", $0}' > "$PACKAGE_DIR/Play-VoidNavigator.bat"
-cp "$ROOT_DIR/README.md" "$ROOT_DIR/GAME_MECHANICS.md" "$PACKAGE_DIR/"
+cp "$ROOT_DIR/README.md" "$ROOT_DIR/GAME_MECHANICS.md" "$ROOT_DIR/STORY.md" "$PACKAGE_DIR/"
 
 (cd "$STAGING_DIR" && zip -q -r "$ARCHIVE" VoidNavigator)
 echo "Packaged portable Java 17 download: $ARCHIVE"

@@ -8,7 +8,7 @@ Survive successive timed levels. Each level has a 30-second active period and a 
 
 | Resource | Starting value | Maximum and gain | Use or consequence |
 | --- | ---: | --- | --- |
-| M-AM fuel | 500 | 1,000; asteroid kills give 20/10/5 for large/medium/small | Thrust spends 1 per tick, or 4 in hyper mode. Fuel at zero stops sustained thrust. |
+| M-AM fuel | 500 | 1,000; asteroid kills give 20/10/5 for large/medium/small | Without Void energy, thrust spends 1 per tick, or 4 in hyper mode. Fuel at zero stops sustained M-AM thrust. |
 | Score | 0 | Large/medium/small asteroid kills give 20/10/5 points | Highest score is retained. |
 | Incident Essence | 0 | Defeating a weight 1/2/3 cosmic entity or Void creature gives a random 1–2 / 1–3 / 1–5 Essence | Pay 5 per weapon level or 10 per ability or utility level. |
 | Void energy | 0 | 100 | At 100, the run ends unless a charged Shield clears the energy. |
@@ -21,10 +21,10 @@ The regular and Void enemy populations are measured separately by **weight**, no
 
 | Stat | Value |
 | --- | --- |
-| Thrust acceleration | 0.05 per tick; hyper multiplies thrust by 4 |
+| Thrust acceleration | 0.05 per tick; M-AM hyper multiplies it by 4, stored Void energy by 5, and Void energy with hyper by 6 |
 | Rotation | 1° per tick; hyper multiplies turning by 8.5 |
-| Speed clamp | Each velocity axis is limited to ±2.5 normally or ±8 in hyper mode |
-| Void energy thrust bonus | If any Void energy remains, thrust gains a further 20% acceleration |
+| Speed clamp | Each velocity axis is limited to ±2.5 normally, ±8 with M-AM hyper, ±9 with Void energy, or ±10 with Void energy and hyper |
+| Void propulsion | While Void energy remains, thrust spends no M-AM; its normal acceleration and speed limit exceed M-AM hyper. Void energy does not change turning speed. |
 | Shot repeat | Holding Fire shoots once every 8 ticks after the first shot |
 | Ordinary bullet | 10 pixels/tick, 180-tick life (3 seconds), 25 damage to enemies |
 | Bullet radius | 3 pixels normally; 5, 7, or 9 with Bullet Enlargement levels 1–3 |
@@ -32,7 +32,7 @@ The regular and Void enemy populations are measured separately by **weight**, no
 
 While Void is active, the ship can pass through asteroids, but Void creatures can kill it. Outside the Void, cosmic entities and asteroids can kill on contact. Firing while Void is active or while stored Void energy remains uses Void lasers; otherwise it uses bullets. Outside the Void, a laser shot consumes 5 stored energy. In the Void, it adds 2 energy before Energy Modulator effects. Lasers shrink a black hole by 6 size units per hit. Nova and Shield destroy asteroids without splitting them; bullets and lasers outside the Void split large and medium asteroids into two of the next smaller size.
 
-Void energy rises by 0.1 per tick while in the Void, with action-based gain able to accelerate up to 3×. It falls by 0.05 per tick outside the Void. Thrusting or turning uses 0.1 energy per action outside the Void; firing a laser there uses 5. Toggling out of the Void starts a 3-second cooldown. Energy reaching 100 is fatal unless Shield is charged.
+Void energy rises by 0.1 per tick while in the Void, with action-based gain able to accelerate up to 3×. It falls by 0.05 per tick outside the Void. While any Void energy remains, thrust is powered by it instead of M-AM. Outside the Void, each thrust tick or turn spends 0.1 energy and each laser shot spends 5. In the Void, actions still increase energy below 50; Energy Modulator reverses their effect above 50. Toggling out of the Void starts a 3-second cooldown. Energy reaching 100 is fatal unless Shield is charged.
 
 ## Construction and shortcuts
 
