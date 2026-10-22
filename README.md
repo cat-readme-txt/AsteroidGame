@@ -36,6 +36,18 @@ Choose **New Game** from the main menu. The ship starts with 500 M-AM. Destroy a
 
 Controls changed in Settings replace the defaults shown here. Weapon construction costs 5 Incident Essence per level; ability and utility construction costs 10 per level. The construction screen shows the relevant shortcuts.
 
+## Remove the game
+
+Quit VoidNavigator first. The removal scripts are beside the app or `VoidNavigator` folder in the extracted download:
+
+| Download | Removal command |
+| --- | --- |
+| Windows app or portable download on Windows | Double-click `Uninstall-VoidNavigator.cmd`. |
+| macOS app | In Terminal, run `./Uninstall-VoidNavigator.command` from the extracted download folder. |
+| Portable download on macOS or Linux | In a terminal, run `./Uninstall-VoidNavigator.sh` from the extracted download folder. |
+
+The scripts show the app path and ask you to type `REMOVE`. They delete the app bundle or extracted game folder and keep saved games by default. If you moved the macOS app to Applications, run `./Uninstall-VoidNavigator.command --app /Applications/VoidNavigator.app` from the extracted download folder. On macOS or Linux, use `--app PATH` for a moved portable folder and `--remove-saves` to delete saves too. On Windows, run `powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\Uninstall-VoidNavigator.ps1 -RemoveSaves` from the extracted download folder to delete saves; add `-AppPath "C:\path\to\VoidNavigator"` if you moved the app folder. Both scripts support a dry run (`--dry-run` or `-DryRun`) and unattended confirmation (`--yes` or `-Yes`). The original ZIP and the small removal scripts remain after the app is deleted.
+
 ## Saves and troubleshooting
 
 Pausing saves the active run. **Continue** restores it; **New Game** starts a fresh run. Highest score and survival time are retained. Saves are stored outside the game folder: `%APPDATA%\VoidNavigator\save.dat` on Windows, `~/Library/Application Support/VoidNavigator/save.dat` on macOS, and `${XDG_DATA_HOME:-~/.local/share}/VoidNavigator/save.dat` on Linux.

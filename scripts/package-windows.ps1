@@ -48,8 +48,13 @@ try {
     Copy-Item (Join-Path $root "README.md") $app
     Copy-Item (Join-Path $root "GAME_MECHANICS.md") $app
     Copy-Item (Join-Path $root "STORY.md") $app
+    $uninstallPs1 = Join-Path $stage "Uninstall-VoidNavigator.ps1"
+    $uninstallCmd = Join-Path $stage "Uninstall-VoidNavigator.cmd"
+    Copy-Item (Join-Path $root "scripts\Uninstall-VoidNavigator.ps1") $uninstallPs1
+    Copy-Item (Join-Path $root "scripts\Uninstall-VoidNavigator.cmd") $uninstallCmd
     $stagedArchive = Join-Path $stage "$AppName-Windows-x64-0.zip"
-    Compress-Archive -Path $app -DestinationPath $stagedArchive -CompressionLevel Optimal
+    Compress-Archive -Path $app, $uninstallPs1, $uninstallCmd `
+        -DestinationPath $stagedArchive -CompressionLevel Optimal
     Copy-Item $stagedArchive $archive -Force
     Write-Host "Packaged Windows download: $archive"
 }

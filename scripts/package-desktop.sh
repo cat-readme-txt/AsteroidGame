@@ -35,6 +35,8 @@ DOWNLOAD_DIR="$STAGING_DIR/$APP_NAME-macOS-$(uname -m)-$PACKAGE_VERSION"
 mkdir -p "$DOWNLOAD_DIR"
 ditto "$APP_PATH" "$DOWNLOAD_DIR/$APP_NAME.app"
 cp "$ROOT_DIR/README.md" "$ROOT_DIR/GAME_MECHANICS.md" "$ROOT_DIR/STORY.md" "$DOWNLOAD_DIR/"
+cp "$ROOT_DIR/scripts/Uninstall-VoidNavigator.sh" "$DOWNLOAD_DIR/Uninstall-VoidNavigator.command"
+chmod +x "$DOWNLOAD_DIR/Uninstall-VoidNavigator.command"
 ditto -c -k --sequesterRsrc --keepParent "$DOWNLOAD_DIR" "$STAGING_DIR/$ZIP_NAME"
 
 if [[ -e "$DIST_DIR/$APP_NAME.app" ]]; then
