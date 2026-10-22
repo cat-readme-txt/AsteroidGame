@@ -25,11 +25,28 @@ public final class AudioRegressionTest {
                 check(stream.getFrameLength() > 32_000, track + " contains playable audio");
             }
         }
-        for (String effect : new String[]{"ui-select.wav", "mouse-click.wav"}) {
+        for (String effect : new String[]{"ui-select.wav", "mouse-click.wav",
+                "fire.wav", "laser.wav", "hyper.wav"}) {
             URL resource = GameAudio.class.getResource("/assets/audio/" + effect);
             check(resource != null, effect + " is bundled");
             try (AudioInputStream stream = AudioSystem.getAudioInputStream(resource)) {
-                check(stream.getFrameLength() > 0, effect + " is decodable");
+                AudioFormat format = stream.getFormat();
+                if (effect.equals("fire.wav") || effect.equals("laser.wav")
+                        || effect.equals("hyper.wav")) {
+                    check(format.getEncoding() == AudioFormat.Encoding.PCM_SIGNED
+                                    && format.getChannels() == 1
+                                    && format.getSampleSizeInBits() == 16
+                                    && format.getFrameRate() == 32000,
+                            effect + " is compatible with Java Sound effects");
+                }
+                check(stream.getFrameLength() > 0, effect + " contains playable audio");
+                if (effect.equals("hyper.wav")) {
+                    int frames = (int) stream.getFrameLength();
+                    check(frames > 6400, "hyper has a full intro before its tail");
+                    check(frames - GameAudio.hyperTailStartFrame(frames, format.getFrameRate())
+                                    == 6400,
+                            "hyper loops its final 0.2 seconds");
+                }
             }
         }
         GameAudio audio = new GameAudio();

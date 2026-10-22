@@ -249,6 +249,7 @@ public final class AsteroidGame extends JPanel implements ActionListener, KeyLis
 	    deathExplosionFrame = 0;
 	    deathExplosionDone = false;
 		ship = new Ship();
+		audio.setHyperActive(false);
 		teleportAnchor = new TeleportAnchor();
 		abilityManager = new AbilityManager();
 		abilityLoadout.resetForNewRun();
@@ -284,6 +285,7 @@ public final class AsteroidGame extends JPanel implements ActionListener, KeyLis
 	}
 
 	private void changeScene(String nextState) {
+		if (!nextState.equals("playing")) setHyperMode(false);
 		particleSystem.clear();
 		floatingTextManager.clear();
 		ship.getTrail().clear();
@@ -716,7 +718,7 @@ public final class AsteroidGame extends JPanel implements ActionListener, KeyLis
 		}
 		thrusting = rotatingLeft = rotatingRight = false;
 		shooting = false;
-		ship.setHyper(false);
+		setHyperMode(false);
 		gameClock.reset(System.nanoTime());
 		repaint();
 	}
@@ -1592,7 +1594,9 @@ public final class AsteroidGame extends JPanel implements ActionListener, KeyLis
 			}
 		}
 		for (DroneSwarm.Shot shot : abilityManager.drainDroneShots()) {
+			int firstBullet = bullets.size();
 			weaponSystem.fire(bullets, shot.x(), shot.y(), shot.angle(), 0.72);
+			if (bullets.size() > firstBullet) audio.playFire();
 		}
 		for (DroneSwarm.Destruction destruction : abilityManager.drainDroneDestructions()) {
 			particleSystem.createDroneExplosion(destruction.x(), destruction.y());
@@ -2774,11 +2778,19 @@ public final class AsteroidGame extends JPanel implements ActionListener, KeyLis
 					ship.getAngle(), 1.0, WIDTH, HEIGHT);
 			for (int i = firstLaser; i < voidLasers.size(); i++)
 				clipLaserToBlackHole(voidLasers.get(i));
+			if (voidLasers.size() > firstLaser) audio.playLaser();
 			if (ship.getVoidEnergy().isActive()) ship.getVoidEnergy().absorbForAction(2.0);
 			else ship.getVoidEnergy().dissipateForAction(5.0);
 		} else {
+			int firstBullet = bullets.size();
 			weaponSystem.fire(bullets, ship.getX(), ship.getY(), ship.getAngle(), 1.0);
+			if (bullets.size() > firstBullet) audio.playFire();
 		}
+	}
+
+	private void setHyperMode(boolean active) {
+		ship.setHyper(active);
+		audio.setHyperActive(active);
 	}
 
     @Override
@@ -2836,7 +2848,7 @@ public final class AsteroidGame extends JPanel implements ActionListener, KeyLis
 					blackHoleChargeSlot = -1;
 					suppressTerminalOpenTyped = true;
 					thrusting = rotatingLeft = rotatingRight = false;
-					ship.setHyper(false);
+					setHyperMode(false);
 					gameClock.reset(System.nanoTime());
 					repaint();
 					return;
@@ -2860,7 +2872,7 @@ public final class AsteroidGame extends JPanel implements ActionListener, KeyLis
 				if (key == controlConfig.getKey("thrust")) thrusting = true;
 				else if (key == controlConfig.getKey("left")) rotatingLeft = true;
 				else if (key == controlConfig.getKey("right")) rotatingRight = true;
-				else if (key == controlConfig.getKey("hyper")) ship.setHyper(true);
+				else if (key == controlConfig.getKey("hyper")) setHyperMode(true);
 				else if (key == controlConfig.getKey("shoot")) {
 					if (!shooting) {
 						shooting = true;
@@ -2919,7 +2931,7 @@ public final class AsteroidGame extends JPanel implements ActionListener, KeyLis
 	        if (key == controlConfig.getKey("thrust")) thrusting = false;
 	        else if (key == controlConfig.getKey("left")) rotatingLeft = false;
 	        else if (key == controlConfig.getKey("right")) rotatingRight = false;
-	        else if (key == controlConfig.getKey("hyper")) ship.setHyper(false);
+	        else if (key == controlConfig.getKey("hyper")) setHyperMode(false);
 			else if (key == controlConfig.getKey("shoot")) shooting = false;
     	}
     }

@@ -6,8 +6,12 @@ import javax.sound.sampled.DataLine;
 import javax.sound.sampled.FloatControl;
 import javax.sound.sampled.SourceDataLine;
 
-/** Streams one soundtrack at a time and remembers each world's playback position. */
+/** Streams one soundtrack and plays overlapping effects through short PCM clips. */
 public final class GameAudio implements AutoCloseable {
+    private static final int SHOT_VOICES = 8;
+    private static final double SHOT_VOLUME = 0.45;
+    private static final double HYPER_TAIL_SECONDS = 0.2;
+
     public enum Track {
         MENU("menu.wav"), BATTLE("battle.wav"), VOID("void.wav"), STORY("story.wav");
 
@@ -17,12 +21,19 @@ public final class GameAudio implements AutoCloseable {
     }
 
     private final Object lock = new Object();
+    private final Object effectsLock = new Object();
     private final long[] savedFrames = new long[Track.values().length];
     private final long[] resetGeneration = new long[Track.values().length];
     private volatile Track selected = Track.MENU;
     private volatile SourceDataLine activeLine;
     private volatile Clip selectClip;
     private volatile Clip clickClip;
+    private Clip[] fireClips;
+    private Clip[] laserClips;
+    private Clip hyperClip;
+    private int nextFireClip;
+    private int nextLaserClip;
+    private boolean hyperActive;
     private volatile double musicVolume = 0.5;
     private volatile double effectsVolume = 0.7;
     private Thread worker;
@@ -65,29 +76,107 @@ public final class GameAudio implements AutoCloseable {
     public Track selected() { return selected; }
     public void setVolumes(int musicPercent, int effectsPercent) {
         musicVolume = Math.max(0, Math.min(100, musicPercent)) / 100.0;
-        effectsVolume = Math.max(0, Math.min(100, effectsPercent)) / 100.0;
+        synchronized (effectsLock) {
+            boolean wasMuted = effectsVolume <= 0;
+            effectsVolume = Math.max(0, Math.min(100, effectsPercent)) / 100.0;
+            if (hyperClip != null && hyperActive) {
+                if (effectsVolume <= 0) hyperClip.stop();
+                else if (wasMuted) startHyper();
+                else setGain(hyperClip, 1.0);
+            }
+        }
     }
     public void playSelect() { play(selectClip); }
     public void playClick() { play(clickClip); }
+    public void playFire() {
+        synchronized (effectsLock) {
+            nextFireClip = playShot(fireClips, nextFireClip);
+        }
+    }
+    public void playLaser() {
+        synchronized (effectsLock) {
+            nextLaserClip = playShot(laserClips, nextLaserClip);
+        }
+    }
+
+    public void setHyperActive(boolean active) {
+        synchronized (effectsLock) {
+            if (hyperActive == active) return;
+            hyperActive = active;
+            if (hyperClip == null) return;
+            hyperClip.stop();
+            hyperClip.setFramePosition(0);
+            if (active && effectsVolume > 0) startHyper();
+        }
+    }
+
+    private int playShot(Clip[] clips, int next) {
+        if (clips == null || effectsVolume <= 0) return next;
+        Clip fallback = null;
+        int fallbackIndex = next;
+        for (int offset = 0; offset < clips.length; offset++) {
+            int index = (next + offset) % clips.length;
+            Clip clip = clips[index];
+            if (clip == null) continue;
+            if (fallback == null) { fallback = clip; fallbackIndex = index; }
+            if (!clip.isRunning()) {
+                play(clip, SHOT_VOLUME);
+                return (index + 1) % clips.length;
+            }
+        }
+        if (fallback != null) play(fallback, SHOT_VOLUME);
+        return (fallbackIndex + 1) % clips.length;
+    }
+
+    private void startHyper() {
+        setGain(hyperClip, 1.0);
+        int tailStart = hyperTailStartFrame(hyperClip.getFrameLength(),
+                hyperClip.getFormat().getFrameRate());
+        hyperClip.setLoopPoints(tailStart, hyperClip.getFrameLength() - 1);
+        hyperClip.setFramePosition(0);
+        hyperClip.loop(Clip.LOOP_CONTINUOUSLY);
+    }
+
+    static int hyperTailStartFrame(int frameLength, float frameRate) {
+        int tailFrames = Math.max(1, Math.round((float) (frameRate * HYPER_TAIL_SECONDS)));
+        return Math.max(0, frameLength - tailFrames);
+    }
 
     private void play(Clip clip) {
+        play(clip, 1.0);
+    }
+
+    private void play(Clip clip, double volumeScale) {
         if (clip == null) return;
         synchronized (clip) {
             if (effectsVolume <= 0) return;
-            if (clip.isControlSupported(FloatControl.Type.MASTER_GAIN)) {
-                FloatControl gain = (FloatControl) clip.getControl(FloatControl.Type.MASTER_GAIN);
-                gain.setValue(Math.max(gain.getMinimum(),
-                        Math.min(gain.getMaximum(), (float) (20 * Math.log10(effectsVolume)))));
-            }
+            setGain(clip, volumeScale);
             clip.stop();
             clip.setFramePosition(0);
             clip.start();
         }
     }
 
+    private void setGain(Clip clip, double volumeScale) {
+        if (!clip.isControlSupported(FloatControl.Type.MASTER_GAIN)) return;
+        FloatControl gain = (FloatControl) clip.getControl(FloatControl.Type.MASTER_GAIN);
+        double volume = Math.max(0.0001, effectsVolume * volumeScale);
+        gain.setValue(Math.max(gain.getMinimum(),
+                Math.min(gain.getMaximum(), (float) (20 * Math.log10(volume)))));
+    }
+
     private void run() {
         selectClip = loadClip("/assets/audio/ui-select.wav");
         clickClip = loadClip("/assets/audio/mouse-click.wav");
+        Clip[] loadedFire = loadClips("/assets/audio/fire.wav", SHOT_VOICES);
+        Clip[] loadedLaser = loadClips("/assets/audio/laser.wav", SHOT_VOICES);
+        Clip loadedHyper = loadClip("/assets/audio/hyper.wav");
+        synchronized (effectsLock) {
+            fireClips = loadedFire;
+            laserClips = loadedLaser;
+            hyperClip = loadedHyper;
+            if (hyperActive && hyperClip != null && effectsVolume > 0) startHyper();
+        }
         while (true) {
             Track track;
             long startingFrame, generation;
@@ -115,6 +204,13 @@ public final class GameAudio implements AutoCloseable {
         closeClip(selectClip);
         closeClip(clickClip);
         selectClip = clickClip = null;
+        synchronized (effectsLock) {
+            closeClips(fireClips);
+            closeClips(laserClips);
+            closeClip(hyperClip);
+            fireClips = laserClips = null;
+            hyperClip = null;
+        }
     }
 
     private boolean stream(Track track, long startingFrame, long generation) {
@@ -190,9 +286,19 @@ public final class GameAudio implements AutoCloseable {
         }
     }
 
+    private static Clip[] loadClips(String name, int count) {
+        Clip[] clips = new Clip[count];
+        for (int i = 0; i < count; i++) clips[i] = loadClip(name);
+        return clips;
+    }
+
     private static void closeClip(Clip clip) { if (clip != null) clip.close(); }
+    private static void closeClips(Clip[] clips) {
+        if (clips != null) for (Clip clip : clips) closeClip(clip);
+    }
 
     @Override public void close() {
+        setHyperActive(false);
         synchronized (lock) {
             closed = true;
             lock.notifyAll();
