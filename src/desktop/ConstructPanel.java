@@ -27,6 +27,7 @@ public final class ConstructPanel {
     private static final Font TITLE_FONT = new Font("SansSerif", Font.BOLD, 18);
     private static final Font BODY_FONT = new Font("SansSerif", Font.PLAIN, 13);
     private static final Font SMALL_FONT = new Font("SansSerif", Font.BOLD, 12);
+    private static final Font DETAIL_FONT = new Font("SansSerif", Font.PLAIN, 12);
 
     private static final String[] CATEGORY_NAMES = {
             "Utilities", "Weapons", "Abilities", "Return to Humanity"
@@ -46,6 +47,28 @@ public final class ConstructPanel {
             "Hit 3, 5, then unlimited targets per bullet.",
             "Larger bullets with a deeper purple color."
     };
+    private static final String[][] WEAPON_LEVEL_STATS = {
+            {"L1  3 forward shots (±15°)", "L2  5 forward shots (adds ±30°)",
+                    "L3  7 forward shots (adds ±45°)"},
+            {"L1  2 rear shots (±15°)", "L2  4 rear shots (adds ±30°)",
+                    "L3  6 rear shots (adds ±45°)"},
+            {"L1  Up to 3 targets per bullet", "L2  Up to 5 targets per bullet",
+                    "L3  Unlimited targets per bullet"},
+            {"L1  5 px bullet radius", "L2  7 px bullet radius",
+                    "L3  9 px bullet radius"}
+    };
+    private static final String[] WEAPON_NOTES = {
+            "Pairs also fire as Void lasers and from drones.",
+            "Rear pairs also fire as Void lasers and from drones.",
+            "Each bullet can hit more distinct targets.",
+            "Base radius is 3 px; color deepens with level."
+    };
+    private static final String[] WEAPON_EXTRA = {
+            "Each tier adds another pair 15° farther out.",
+            "Each tier adds another pair 15° farther out.",
+            "Each registered hit still deals normal bullet damage.",
+            "Larger bullets keep their normal speed and lifetime."
+    };
     private static final String[] ABILITY_NAMES = {
             "Teleport", "Drone", "Nova", "Black Hole"
     };
@@ -59,6 +82,26 @@ public final class ConstructPanel {
             "Release an expanding energy blast.",
             "Charge and launch an absorbed black hole."
     };
+    private static final String[][] ABILITY_LEVEL_STATS = {
+            {"L1  10s cooldown", "L2  5s cooldown", "L3  2s cooldown"},
+            {"L1  1 drone; fires every 5s", "L2  2 drones; fires every 3s",
+                    "L3  3 drones; fires every 1s"},
+            {"L1  30s cooldown", "L2  20s cooldown", "L3  10s cooldown"},
+            {"L1  30s cooldown; absorb 1 hole", "L2  20s cooldown; absorb 2 holes",
+                    "L3  10s cooldown; absorb 3 holes"}
+    };
+    private static final String[] ABILITY_NOTES = {
+            "Safe jump in 0.5s; 0.25s arrival protection.",
+            "One deploy charge every 12s; avoids black holes.",
+            "1s charge; 1,000 px blast; clears Void energy.",
+            "Hold to aim 80–820 px; purple holes resist lasers."
+    };
+    private static final String[] ABILITY_EXTRA = {
+            "Landing stays clear of edges and obstacles when possible.",
+            "Pursues within 450 px; fires within 165 px.",
+            "Destroys asteroids, enemies, and black holes.",
+            "Starts at 34 + 8 per absorbed hole, capped at 110."
+    };
     private static final int[] ABILITY_ICONS = {7, 9, 10, 8};
     private static final String[] UTILITY_NAMES = {
             "Energy Modulator", "Swarm", "Metric Divergence Generator", "Shield"
@@ -68,6 +111,28 @@ public final class ConstructPanel {
             "Spawn 2, 4, or 6 explosive tracking robots.",
             "Slow approaching hazards through visible space rings.",
             "A passive protective burst that recharges over time."
+    };
+    private static final String[][] UTILITY_LEVEL_STATS = {
+            {"L1  1.25× action drain above 50", "L2  1.75× action drain above 50",
+                    "L3  2.25× drain; absorb holes ≤32"},
+            {"L1  2 bots every 10s", "L2  4 bots every 8s",
+                    "L3  6 bots every 5s"},
+            {"L1  3 rings; 0.8× speed per ring", "L2  4 rings; 0.5× speed per ring",
+                    "L3  5 rings; 0.3× speed per ring"},
+            {"L1  18s recharge; 160 px burst", "L2  12s recharge; 320 px burst",
+                    "L3  7s recharge; full-screen burst"}
+    };
+    private static final String[] UTILITY_NOTES = {
+            "Idle Void energy still rises; L3 absorbs small holes.",
+            "85 px blasts; bots avoid black holes.",
+            "260 px outer radius; asteroids and enemies only.",
+            "Auto bursts near threats or at 100 Void energy."
+    };
+    private static final String[] UTILITY_EXTRA = {
+            "In the Void, passive energy gain continues toward 100.",
+            "First wave after 1s; each blast lasts 20 ticks.",
+            "Bullets and Void lasers are unaffected.",
+            "Triggers at 34 px or 100 Void energy; lasts 22 ticks."
     };
 
     public static final class Model {
@@ -375,41 +440,50 @@ public final class ConstructPanel {
         for (int i = 0; i < 4; i++) {
             Rectangle r = optionBounds[i];
             int level = weapons ? model.weaponLevels[i] : model.abilityLevels[i];
-            int max = 3;
             int cost = weapons ? 5 : 10;
-            boolean maxed = level >= max;
+            boolean maxed = level >= 3;
             drawCard(g, r, maxed, false);
             int iconX = r.x + 38;
-            int iconY = r.y + Math.min(45, r.height / 3);
-            drawIcon(g, weapons ? 3 + i : ABILITY_ICONS[i], iconX, iconY, 19);
+            int iconY = r.y + 32;
+            drawIcon(g, weapons ? 3 + i : ABILITY_ICONS[i], iconX, iconY, 16);
             g.setFont(TITLE_FONT);
             g.setColor(TEXT);
             String shortcut = weapons ? Integer.toString(i + 1)
                     : controls == null ? Integer.toString(i + 1)
                     : controls.getKeyName(controls.getKey(ABILITY_CONSTRUCT_ACTIONS[i]));
-            g.drawString(shortcut + "  " + (weapons ? WEAPON_NAMES[i] : ABILITY_NAMES[i]),
-                    r.x + 70, r.y + 40);
-            g.setFont(BODY_FONT);
-            g.setColor(MUTED);
-            drawWrapped(g, weapons ? WEAPON_DESCRIPTIONS[i] : ABILITY_DESCRIPTIONS[i],
-                    r.x + 20, r.y + Math.min(75, r.height / 2 + 5), r.width - 40, 2);
-            g.setFont(SMALL_FONT);
-            g.setColor(ACCENT);
+            String equippedShortcut = null;
             if (!weapons && controls != null) {
                 for (int slot = 0; slot < model.slots.length; slot++) {
                     if (level > 0 && ABILITY_IDS[i].equalsIgnoreCase(model.slots[slot])) {
                         String key = controls.getKeyName(controls.getKey("ability" + (slot + 1)));
-                        g.drawString("CTRL+" + key + (maxed ? "  MAXED" : "  UPGRADE"),
-                                r.x + 20, r.y + r.height - 35);
+                        equippedShortcut = "CTRL+" + key;
                         break;
                     }
                 }
             }
-            String progress = maxed ? "CONSTRUCTED  " + level + "/" + max
-                    : !weapons && i == BLACK_HOLE
-                    ? "COST 10 + " + (level + 1) + " ABSORBED  ·  " + level + "/" + max
-                    : "COST " + cost + "  ·  " + level + "/" + max;
-            g.drawString(progress, r.x + 20, r.y + r.height - 17);
+            String heading = shortcut + "  " + (weapons ? WEAPON_NAMES[i] : ABILITY_NAMES[i]);
+            drawFitted(g, heading, r.x + 70, r.y + 40,
+                    r.width - (equippedShortcut == null ? 88 : 185));
+            if (equippedShortcut != null) {
+                g.setFont(SMALL_FONT);
+                g.setColor(ACCENT);
+                drawFittedRight(g, equippedShortcut, r.x + r.width - 18,
+                        r.y + 38, Math.min(100, r.width / 4));
+            }
+            int holesNeeded = !weapons && i == BLACK_HOLE ? level + 1 : 0;
+            String requirement = maxed ? "MAXED  ·  LEVEL 3/3"
+                    : "NEXT L" + (level + 1) + "  ·  " + cost + " ESS"
+                    + (holesNeeded > 0 ? "  ·  HOLES " + model.absorbedBlackHoles
+                            + "/" + holesNeeded : "")
+                    + (!weapons && level == 0 ? "  ·  OPEN SLOT" : "");
+            boolean ready = model.essence >= cost
+                    && (holesNeeded == 0 || model.absorbedBlackHoles >= holesNeeded)
+                    && (weapons || level > 0 || hasOpenSlot(model));
+            drawLevelDetails(g, r, level,
+                    weapons ? WEAPON_LEVEL_STATS[i] : ABILITY_LEVEL_STATS[i],
+                    weapons ? WEAPON_NOTES[i] : ABILITY_NOTES[i],
+                    weapons ? WEAPON_EXTRA[i] : ABILITY_EXTRA[i], requirement,
+                    maxed || ready);
         }
     }
 
@@ -419,20 +493,45 @@ public final class ConstructPanel {
             int level = model.utilityLevels[i];
             boolean maxed = level >= 3;
             drawCard(g, r, maxed, false);
-            drawIcon(g, 15 + i, r.x + 38, r.y + Math.min(45, r.height / 3), 19);
+            drawIcon(g, 15 + i, r.x + 38, r.y + 32, 16);
             g.setFont(TITLE_FONT);
             g.setColor(TEXT);
-            g.drawString((i + 1) + "  " + UTILITY_NAMES[i], r.x + 70, r.y + 40);
-            g.setFont(BODY_FONT);
-            g.setColor(MUTED);
-            drawWrapped(g, UTILITY_DESCRIPTIONS[i], r.x + 20,
-                    r.y + Math.min(75, r.height / 2 + 5), r.width - 40, 2);
-            g.setFont(SMALL_FONT);
-            g.setColor(ACCENT);
-            String progress = maxed ? "CONSTRUCTED  3/3"
-                    : "COST 10  ·  " + level + "/3";
-            g.drawString(progress, r.x + 20, r.y + r.height - 17);
+            drawFitted(g, (i + 1) + "  " + UTILITY_NAMES[i],
+                    r.x + 70, r.y + 40, r.width - 88);
+            String requirement = maxed ? "MAXED  ·  LEVEL 3/3"
+                    : "NEXT L" + (level + 1) + "  ·  10 ESS"
+                    + (level == 0 ? "  ·  OPEN SLOT" : "");
+            boolean ready = model.essence >= 10
+                    && (level > 0 || hasOpenSlot(model.utilitySlots));
+            drawLevelDetails(g, r, level, UTILITY_LEVEL_STATS[i], UTILITY_NOTES[i],
+                    UTILITY_EXTRA[i],
+                    requirement, maxed || ready);
         }
+    }
+
+    private static void drawLevelDetails(Graphics2D g, Rectangle r, int level,
+                                         String[] stats, String note, String extra,
+                                         String requirement, boolean ready) {
+        int x = r.x + 20;
+        int width = r.width - 40;
+        g.setColor(new Color(100, 145, 167, 95));
+        g.drawLine(x, r.y + 53, r.x + r.width - 20, r.y + 53);
+        g.setFont(DETAIL_FONT);
+        for (int tier = 0; tier < 3; tier++) {
+            g.setColor(level > tier ? ACCENT : level == tier ? TEXT : MUTED);
+            drawFitted(g, stats[tier], x, r.y + 72 + tier * 18, width);
+        }
+        if (r.height >= 190) {
+            g.setColor(MUTED);
+            drawFitted(g, note, x, r.y + 145, width);
+        }
+        if (r.height >= 215) {
+            g.setColor(MUTED);
+            drawFitted(g, extra, x, r.y + 165, width);
+        }
+        g.setFont(SMALL_FONT);
+        g.setColor(ready ? ACCENT : ERROR);
+        drawFitted(g, requirement, x, r.y + r.height - 17, width);
     }
 
     private void drawSlotSelection(Graphics2D g, Model model) {
@@ -724,6 +823,32 @@ public final class ConstructPanel {
 
     private static void drawCentered(Graphics2D g, String text, int centerX, int baseline) {
         g.drawString(text, centerX - g.getFontMetrics().stringWidth(text) / 2, baseline);
+    }
+
+    private static void drawFitted(Graphics2D g, String text, int x, int baseline, int width) {
+        drawFittedLine(g, text, x, baseline, width, false);
+    }
+
+    private static void drawFittedRight(Graphics2D g, String text, int right,
+                                        int baseline, int width) {
+        drawFittedLine(g, text, right, baseline, width, true);
+    }
+
+    private static void drawFittedLine(Graphics2D g, String text, int anchor,
+                                       int baseline, int width, boolean alignRight) {
+        Font original = g.getFont();
+        float size = original.getSize2D();
+        while (g.getFontMetrics().stringWidth(text) > width && size > 10) {
+            size--;
+            g.setFont(original.deriveFont(size));
+        }
+        String visible = text;
+        int length = text.length();
+        while (g.getFontMetrics().stringWidth(visible) > width && length > 0)
+            visible = text.substring(0, --length) + "…";
+        int x = alignRight ? anchor - g.getFontMetrics().stringWidth(visible) : anchor;
+        g.drawString(visible, x, baseline);
+        g.setFont(original);
     }
 
     private static void drawWrappedCentered(Graphics2D g, String text, int centerX,

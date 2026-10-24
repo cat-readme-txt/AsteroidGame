@@ -1,6 +1,10 @@
 import java.awt.Graphics2D;
+import java.awt.Font;
+import java.awt.FontMetrics;
+import java.awt.Rectangle;
 import java.awt.event.KeyEvent;
 import java.awt.image.BufferedImage;
+import java.lang.reflect.Field;
 
 public final class ConstructPanelRegressionTest {
     private static int checks;
@@ -20,7 +24,7 @@ public final class ConstructPanelRegressionTest {
         return panel.handleKey(key, model).type;
     }
 
-    public static void main(String[] args) {
+    public static void main(String[] args) throws Exception {
         ConstructPanel panel = new ConstructPanel();
         ConstructPanel.Model funded = model(20, -1);
         check(key(panel, KeyEvent.VK_1, funded) == ConstructPanel.Action.Type.NONE,
@@ -110,6 +114,48 @@ public final class ConstructPanelRegressionTest {
         panel.draw(largeGraphics, 1200, 700, pending);
         largeGraphics.dispose();
         check(largeImage.getRGB(600, 350) != 0, "Pending layout renders at 1200x700");
+
+        ConstructPanel.Model details = new ConstructPanel.Model(10, new int[4],
+                new int[4], new String[4], -1, new int[4], new String[4], -1, 0);
+        Field optionField = ConstructPanel.class.getDeclaredField("optionBounds");
+        optionField.setAccessible(true);
+        Field panelField = ConstructPanel.class.getDeclaredField("panelBounds");
+        panelField.setAccessible(true);
+        for (int[] size : new int[][]{{960, 500}, {1200, 700}}) {
+            for (int section = 0; section < 3; section++) {
+                if (section == 0) panel.showWeapons();
+                else if (section == 1) panel.showAbilities();
+                else panel.showUtilities();
+                BufferedImage preview = new BufferedImage(size[0], size[1],
+                        BufferedImage.TYPE_INT_ARGB);
+                Graphics2D previewGraphics = preview.createGraphics();
+                panel.draw(previewGraphics, size[0], size[1], details, new ControlConfig());
+                Rectangle bounds = (Rectangle) panelField.get(panel);
+                Rectangle[] cards = (Rectangle[]) optionField.get(panel);
+                for (Rectangle card : cards) {
+                    check(bounds.contains(card.x, card.y)
+                                    && bounds.contains(card.x + card.width - 1,
+                                            card.y + card.height - 1),
+                            "construction card remains inside its panel");
+                    check(card.height - 17 - (72 + 2 * 18) >= 20,
+                            "level stats and requirement footer have separate rows");
+                }
+                String fieldName = section == 0 ? "WEAPON_LEVEL_STATS"
+                        : section == 1 ? "ABILITY_LEVEL_STATS" : "UTILITY_LEVEL_STATS";
+                Field statsField = ConstructPanel.class.getDeclaredField(fieldName);
+                statsField.setAccessible(true);
+                String[][] stats = (String[][]) statsField.get(null);
+                FontMetrics metrics = previewGraphics.getFontMetrics(
+                        new Font("SansSerif", Font.PLAIN, 12));
+                for (int i = 0; i < 4; i++) {
+                    for (String line : stats[i]) {
+                        check(metrics.stringWidth(line) <= cards[i].width - 40,
+                                "level stat fits its card at the supported window size");
+                    }
+                }
+                previewGraphics.dispose();
+            }
+        }
 
         panel.reset();
         check(key(panel, KeyEvent.VK_4, funded) == ConstructPanel.Action.Type.NONE,

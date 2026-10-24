@@ -35,6 +35,9 @@ public final class BlackHoleUtilityRegressionTest {
         check(fired.isActive() && fired.getX() < 40, "launched hole wraps at the edge");
         check(!fired.isShipConsumed(fired.getX(), fired.getY()),
                 "player hole is harmless to the ship");
+        double ownedSize = fired.getSize();
+        fired.shrinkFromLaser();
+        check(fired.getSize() == ownedSize, "Void lasers do not shrink a purple player hole");
         double largerLife = Math.max(natural.getLifetimeFrames(), fired.getLifetimeFrames());
         double smallerLife = Math.min(natural.getLifetimeFrames(), fired.getLifetimeFrames());
         BlackHole merged = BlackHole.merge(natural, fired);
@@ -56,20 +59,25 @@ public final class BlackHoleUtilityRegressionTest {
         for (int i = 0; i < 180; i++) { shortLife.update(); giant.update(); }
         giant.grow(1000);
         check(giant.getSize() == 420, "black hole grows to the raised maximum size");
-        check(giant.getLifetimeMultiplier() > 0 && giant.getLifetimeMultiplier() < 1
-                        && giant.getLifetimeMultiplier() < shortLife.getLifetimeMultiplier(),
-                "larger holes have a smaller lifetime multiplier between zero and one");
-        check(giant.getEstimatedRemainingFrames() < shortLife.getEstimatedRemainingFrames(),
-                "larger holes spend the same lifetime pool faster");
-        check(shortLife.getEstimatedRemainingFrames() < 30 * 60
+        check(giant.getLifetimeMultiplier() > shortLife.getLifetimeMultiplier()
+                        && Math.abs(giant.getLifetimeMultiplier() - 3.2) < 0.001,
+                "larger holes spend their life pool more slowly");
+        check(giant.getEstimatedRemainingFrames() > shortLife.getEstimatedRemainingFrames()
                         && giant.getPullRadius() <= 350,
-                "overall lifetime and long-distance gravity are reduced");
+                "growth extends life without increasing long-distance gravity");
         check(giant.avoidanceForce(giant.getX() + 260, giant.getY()).x > 0
                         && giant.unsafeTarget(giant.getX() + 220, giant.getY(), 15),
                 "active black holes mark near targets unsafe and push bots outward");
-        for (int i = 0; i < 800; i++) { giant.update(); shortLife.update(); }
-        check(giant.isExpired() && !shortLife.isExpired(),
-                "the larger hole actually expires earlier");
+        for (int i = 0; i < 1900; i++) { giant.update(); shortLife.update(); }
+        check(shortLife.isExpired() && giant.isActive(),
+                "the smaller hole expires first");
+        for (int i = 0; i < 2060; i++) giant.update();
+        check(giant.isActive(), "a fully grown natural hole spans two 33-second levels");
+        BlackHole grownFired = BlackHole.fired(300, 300, 44, 0, 0);
+        grownFired.update();
+        grownFired.grow(1000);
+        for (int i = 0; i < 3960; i++) grownFired.update();
+        check(grownFired.isActive(), "a fully grown launched hole also spans two full levels");
 
         VoidEnergy energy = new VoidEnergy();
         energy.setModulatorLevel(3);

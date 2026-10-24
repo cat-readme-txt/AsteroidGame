@@ -100,7 +100,7 @@ public final class InstructionsPanel {
         y = drawInstructionHeading(g2, "LATER THREATS", x, y, amber);
         y = drawInstructionBullet(g2, "Cosmic entities and void creatures appear from level 3. Their sizes use 1, 2, or 3 spawn weight.", x, y, textWidth, amber, body);
         y = drawInstructionBullet(g2, "Defeat them for Incident Essence. New Game resets the balance.", x, y, textWidth, violet, body);
-        y = drawInstructionBullet(g2, "Black holes appear from level 8 after a warning. Void lasers shrink them. A maxed Energy Modulator marks small holes for pickup; absorption grants infinite M-AM.", x, y, textWidth, amber, body);
+        y = drawInstructionBullet(g2, "Black holes appear from level 8 after a warning. Void lasers shrink natural holes; your purple holes keep their size. Larger holes live longer. A maxed Energy Modulator marks small natural holes for pickup; absorption grants infinite M-AM.", x, y, textWidth, amber, body);
         return y + 20;
     }
 

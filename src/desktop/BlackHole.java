@@ -96,7 +96,8 @@ public class BlackHole {
             vx *= 0.997;
             vy *= 0.997;
         }
-        // The remaining life pool is spent faster as the size multiplier falls.
+        // Growth slows consumption of the remaining life pool; merging keeps its
+        // separate longer-plus-half-shorter life calculation.
         lifetime -= 1.0 / getLifetimeMultiplier();
         if (lifetime <= 0) beginDeath();
     }
@@ -117,7 +118,8 @@ public class BlackHole {
     public boolean isPlayerOwned() { return playerOwned; }
     public double getLifetimeFrames() { return lifetime; }
     public double getLifetimeMultiplier() {
-        return Math.max(0.4, 0.95 - 0.55 * size / MAX_SIZE);
+        double growth = size / MAX_SIZE;
+        return 0.95 + 2.25 * growth * growth;
     }
     public double getEstimatedRemainingFrames() { return lifetime * getLifetimeMultiplier(); }
     public double getSize() { return size; }
@@ -150,7 +152,7 @@ public class BlackHole {
     }
 
     public void shrinkFromLaser() {
-        if (isActive()) size = Math.max(12, size - 6);
+        if (isActive() && !playerOwned) size = Math.max(12, size - 6);
     }
 
     public boolean canAbsorb(int modulatorLevel) {

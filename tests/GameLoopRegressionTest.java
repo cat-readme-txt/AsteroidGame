@@ -52,6 +52,7 @@ public final class GameLoopRegressionTest {
                     testPopulationBookkeeping();
                     testAsteroidPopulationCap();
                     testBlackHoleConsumption();
+                    testOwnedBlackHoleLaser();
                     testResumedHazards();
                     testLongSessionObjectBounds();
                 } catch (Exception exception) {
@@ -1064,6 +1065,20 @@ public final class GameLoopRegressionTest {
                 "black hole consumption gives no player essence");
         ParticleSystem particles = (ParticleSystem)get(game, "particleSystem");
         check(!collection(particles, "particles").isEmpty(), "consumed asteroid plays its destruction animation");
+    }
+
+    private static void testOwnedBlackHoleLaser() throws Exception {
+        AsteroidGame game = createGame(true);
+        BlackHole owned = BlackHole.fired(400, 300, 44, 0, 0);
+        owned.update();
+        collection(game, "blackHoles").add(owned);
+        VoidLaser laser = new VoidLaser(300, 300, Math.PI / 2, 1200, 700);
+        Method clip = AsteroidGame.class.getDeclaredMethod("clipLaserToBlackHole", VoidLaser.class);
+        clip.setAccessible(true);
+        check((boolean) clip.invoke(game, laser) && laser.isSpent(),
+                "a Void laser still ends at a player-owned hole");
+        check(owned.getSize() == 44,
+                "a Void laser impact does not shrink a player-owned purple hole");
     }
 
     private static void testResumedHazards() throws Exception {
